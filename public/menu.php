@@ -31,6 +31,17 @@ $menus = $conn->query($menu_query);
             <?php while ($menu = $menus->fetch_assoc()): ?>
                 <div class="relative bg-white p-4 rounded-xl shadow-lg hover:shadow-xl transition-all">
                     <img src="../assets/images/<?= $menu['gambar']; ?>" alt="<?= $menu['nama_menu']; ?>" class="w-full h-48 object-cover rounded-lg">
+                    <?php if (!empty($menu['model_3d'])): ?>
+                        <div class='absolute top-2 right-2 w-24 h-24 bg-white p-1 rounded-lg shadow-md border border-gray-200'>
+                            <model-viewer src="../assets/models/<?= htmlspecialchars($menu['model_3d']); ?>" 
+                                alt="3D Model" 
+                                camera-controls 
+                                auto-rotate 
+                                style="width: 100%; height: 100%;">
+                            </model-viewer>
+                        </div>
+                    <?php endif; ?>
+
                     <h2 class="text-xl font-semibold mt-4"> <?= $menu['nama_menu']; ?> </h2>
                     <p class="text-gray-500 text-sm">Kategori: <?= $menu['kategori_menu']; ?></p>
 
