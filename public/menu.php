@@ -1,5 +1,10 @@
 <?php
 include '../config/db.php';
+session_start();
+if (!isset($_SESSION['id_meja'])) {
+    header("Location: index.php");
+    exit();
+}
 
 $menu_query = "SELECT 
     m.*, 
@@ -8,10 +13,10 @@ $menu_query = "SELECT
     p.bundle_price
 FROM menu m 
 LEFT JOIN promos p ON m.kategori_menu = p.category_target 
+    AND p.valid_until IS NOT NULL
     AND p.valid_until >= CURDATE()";
 
 $menus = $conn->query($menu_query);
-
 ?>
 
 <!DOCTYPE html>
