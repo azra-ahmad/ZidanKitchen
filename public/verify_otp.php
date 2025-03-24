@@ -29,7 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         // Redirect kembali ke OTP dengan pesan error
         $_SESSION['error'] = "OTP salah atau sudah kedaluwarsa.";
-        header("Location: otp.php");
+        header("Location: index.php");
         exit();
     }
 }

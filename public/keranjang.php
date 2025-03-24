@@ -1,27 +1,43 @@
 <?php
 session_start();
+include '../config/db.php'; // Koneksi ke database
 
-// Contoh data dummy jika belum ada session keranjang
+// Jika keranjang kosong, set sebagai array kosong
 if (!isset($_SESSION['keranjang'])) {
-    $_SESSION['keranjang'] = [
-        [
-            'id_menu' => 1,
-            'nama_menu' => 'sushi',
-            'gambar' => 'sushi.png',
-            'harga' => 40000,
-            'jumlah' => 2
-        ],
-        [
-            'id_menu' => 2,
-            'nama_menu' => 'Birthday Cake',
-            'gambar' => 'birthdayCake.jpeg',
-            'harga' => 150000,
-            'jumlah' => 1
-        ]
-    ];
+    $_SESSION['keranjang'] = [];
 }
 
-// Tangani penambahan atau pengurangan jumlah
+// Ambil data menu dan promo
+$menu_query = "SELECT 
+    m.id_menu, 
+    m.nama_menu, 
+    m.gambar, 
+    m.harga AS harga_asli, 
+    p.promo_type, 
+    p.discount, 
+    p.bundle_price
+FROM menu m
+LEFT JOIN promos p ON m.kategori_menu = p.category_target 
+    AND p.valid_until IS NOT NULL 
+    AND p.valid_until >= CURDATE()";
+
+$menu_result = $conn->query($menu_query);
+$menu_data = [];
+
+while ($row = $menu_result->fetch_assoc()) {
+    // Hitung harga promo jika ada
+    if ($row['promo_type'] == 'discount') {
+        $row['harga_promo'] = $row['harga_asli'] - ($row['harga_asli'] * $row['discount'] / 100);
+    } elseif ($row['promo_type'] == 'bundle') {
+        $row['harga_promo'] = $row['bundle_price'];
+    } else {
+        $row['harga_promo'] = null; // Tidak ada promo
+    }
+
+    $menu_data[$row['id_menu']] = $row;
+}
+
+// Proses tambah/kurang jumlah di keranjang
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($_SESSION['keranjang'] as $i => $item) {
         $id_menu = $item['id_menu'];
@@ -37,45 +53,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Validasi item di keranjang
+foreach ($_SESSION['keranjang'] as $i => $item) {
+    $id_menu = $item['id_menu'];
+    if (!isset($menu_data[$id_menu])) {
+        array_splice($_SESSION['keranjang'], $i, 1);
+    } else {
+        $_SESSION['keranjang'][$i]['harga_asli'] = $menu_data[$id_menu]['harga_asli'];
+        $_SESSION['keranjang'][$i]['harga_promo'] = $menu_data[$id_menu]['harga_promo'];
+        $_SESSION['keranjang'][$i]['gambar'] = $menu_data[$id_menu]['gambar'];
+        $_SESSION['keranjang'][$i]['promo_type'] = $menu_data[$id_menu]['promo_type'];
+    }
+}
 
 $keranjang = $_SESSION['keranjang'];
 ?>
 
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
     <meta charset="UTF-8">
     <title>Keranjang - ZidanKitchen</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-
 <body class="bg-gradient-to-br from-blue-50 to-white min-h-screen font-sans">
-
-    <!-- Header -->
     <div class="sticky top-0 z-50 bg-white shadow-md px-4 py-4 flex justify-between items-center">
-        <h1 class="text-2xl font-bold text-blue-600">Keranjang <span class="text-yellow-400">ZidanKitchen</span></h1>
+        <h1 class="text-2xl font-bold text-blue-600">Keranjang</h1>
         <a href="menu.php" class="text-blue-500 hover:text-blue-700">← Kembali</a>
     </div>
-
     <div class="max-w-4xl mx-auto p-6">
         <?php if (count($keranjang) > 0): ?>
             <form method="POST" class="bg-white rounded-xl shadow-xl p-4 space-y-4 animate-fadeIn">
                 <?php
                 $total = 0;
                 foreach ($keranjang as $item):
-                    $subtotal = $item['harga'] * $item['jumlah'];
+                    $harga_final = $item['harga_promo'] ?? $item['harga_asli'];
+                    $subtotal = $harga_final * $item['jumlah'];
                     $total += $subtotal;
                 ?>
                     <div class="flex items-center gap-4 bg-white rounded-lg shadow-sm p-4">
                         <!-- Gambar -->
-                        <img src="../assets/images/<?= htmlspecialchars($item['gambar']); ?>" alt="<?= $item['nama_menu']; ?>" class="w-20 h-20 object-cover rounded-lg">
+                        <img src="../assets/images/<?= htmlspecialchars($item['gambar']); ?>" alt="<?= htmlspecialchars($item['nama_menu']); ?>" class="w-20 h-20 object-cover rounded-lg">
 
                         <!-- Info Produk -->
                         <div class="flex-1">
-                            <h3 class="text-lg font-semibold"><?= $item['nama_menu']; ?></h3>
-                            <p class="text-gray-500 text-sm">Harga: Rp <?= number_format($item['harga'], 0, ',', '.'); ?></p>
+                            <h3 class="text-lg font-semibold"><?= htmlspecialchars($item['nama_menu']); ?></h3>
+                            
+                            <?php if (!empty($item['promo_type']) && $item['promo_type'] == 'discount'): ?>
+                                <span class="line-through text-red-400">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
+                                <span class="text-gray-700 font-semibold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?></span>
+                            <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'bundle'): ?>
+                                <span class="text-green-500 font-bold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?> (Paket)</span>
+                            <?php else: ?>
+                                <span class="text-gray-800 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
+                            <?php endif; ?>
 
                             <!-- Tombol Tambah Kurang -->
                             <div class="flex items-center mt-2 space-x-2">
@@ -107,13 +139,9 @@ $keranjang = $_SESSION['keranjang'];
             <div class="text-center py-12">
                 <h2 class="text-2xl font-semibold text-gray-600">Keranjangmu kosong 😢</h2>
                 <p class="text-gray-400 mt-2">Yuk tambahkan menu favoritmu!</p>
-                <a href="menu.php" class="mt-6 inline-block bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-full transition">Lihat Menu</a>
+                <a href="menu.php" class="mt-6 inline-block bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-full">Lihat Menu</a>
             </div>
         <?php endif; ?>
     </div>
-
 </body>
-
-</html>
-
 </html>

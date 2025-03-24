@@ -4,8 +4,12 @@ session_start();
 // Ambil data dari POST
 $id_menu = $_POST['id_menu'];
 $nama_menu = $_POST['nama_menu'];
-$harga = $_POST['harga'];
+$harga_asli = $_POST['harga'];
+$harga_promo = $_POST['harga_promo'];
 $gambar = $_POST['gambar'];
+
+// Gunakan harga promo jika ada, kalau tidak ada pakai harga asli
+$harga_final = !empty($harga_promo) ? $harga_promo : $harga_asli;
 
 // Cek apakah sudah ada keranjang
 if (!isset($_SESSION['keranjang'])) {
@@ -27,7 +31,7 @@ if (!$found) {
     $_SESSION['keranjang'][] = [
         'id_menu' => $id_menu,
         'nama_menu' => $nama_menu,
-        'harga' => $harga,
+        'harga' => $harga_final, 
         'gambar' => $gambar,
         'jumlah' => 1
     ];

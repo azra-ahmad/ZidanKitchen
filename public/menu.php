@@ -116,6 +116,7 @@ $menus = $conn->query($menu_query);
                     <input type="hidden" name="id_menu" value="<?= $menu['id_menu'] ?>">
                     <input type="hidden" name="nama_menu" value="<?= $menu['nama_menu']; ?>">
                     <input type="hidden" name="harga" value="<?= $menu['harga']; ?>">
+                    <input type="hidden" name="harga_promo" value="<?= $menu['harga_promo'] ?? ''; ?>"> 
                     <input type="hidden" name="gambar" value="<?= $menu['gambar']; ?>">
                     <button type="submit" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-xl transition font-semibold">
                         Tambah ke Keranjang

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Mar 23, 2025 at 04:32 PM
+-- Generation Time: Mar 24, 2025 at 07:10 PM
 -- Server version: 8.0.30
 -- PHP Version: 8.1.10
 
@@ -39,7 +39,7 @@ CREATE TABLE `meja` (
 --
 
 INSERT INTO `meja` (`id_meja`, `kode_otp`, `status`, `otp_expiry`) VALUES
-(1, '257445', 'digunakan', '2025-03-23 09:10:24'),
+(1, '322529', 'digunakan', '2025-03-24 16:58:27'),
 (2, '613035', 'tersedia', '2025-03-20 09:59:40'),
 (3, NULL, 'tersedia', NULL);
 
@@ -57,16 +57,17 @@ CREATE TABLE `menu` (
   `gambar` varchar(255) NOT NULL,
   `model_3d` varchar(255) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  `harga_promo` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `menu`
 --
 
-INSERT INTO `menu` (`id_menu`, `nama_menu`, `kategori_menu`, `harga`, `gambar`, `model_3d`, `created_at`, `updated_at`) VALUES
-(1, 'sushi', 'makanan', '50000.00', 'sushi.png', 'sushi/scene.gltf', '2025-03-22 14:32:46', NULL),
-(2, 'Birthday Cake', 'dessert', '150000.00', 'birthdayCake.jpeg', 'birthdayCake/scene.gltf', '2025-03-22 17:28:12', '2025-03-22 17:30:46');
+INSERT INTO `menu` (`id_menu`, `nama_menu`, `kategori_menu`, `harga`, `gambar`, `model_3d`, `created_at`, `updated_at`, `harga_promo`) VALUES
+(1, 'sushi', 'makanan', '50000.00', 'sushi.png', 'sushi/scene.gltf', '2025-03-22 14:32:46', NULL, NULL),
+(2, 'Birthday Cake', 'dessert', '150000.00', 'birthdayCake.jpeg', 'birthdayCake/scene.gltf', '2025-03-22 17:28:12', '2025-03-22 17:30:46', NULL);
 
 -- --------------------------------------------------------
 
