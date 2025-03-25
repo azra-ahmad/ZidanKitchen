@@ -8,15 +8,19 @@ if (!isset($_SESSION['admin_logged_in'])) {
 include '../config/db.php';
 date_default_timezone_set('Asia/Jakarta');
 
-// Ambil data pesanan pending & paid, urutkan paid dulu lalu berdasarkan waktu masuk (lama ke baru)
+// Ambil data pesanan pending & paid, urutkan dari yang paling lama ke terbaru 
 $result = $conn->query("
     SELECT * FROM orders 
     WHERE status IN ('paid', 'pending') 
-    ORDER BY FIELD(status, 'paid', 'pending'), created_at ASC
+    ORDER BY id ASC
 ");
+
 
 // Ambil data pesanan selesai, urutkan dari yang paling lama ke terbaru
 $completed_orders = $conn->query("SELECT * FROM orders WHERE status='done' ORDER BY created_at ASC");
+
+// Ambil data pesanan gagal, urutkan dari yang paling lama ke terbaru
+$failed_orders = $conn->query("SELECT * FROM orders WHERE status='failed' ORDER BY created_at ASC");
 
 // Hitung total pendapatan
 $total_pendapatan = $conn->query("SELECT IFNULL(SUM(total_harga), 0) AS total FROM orders WHERE status='done'")->fetch_assoc()['total'];
@@ -62,10 +66,10 @@ $total_pesanan = $conn->query("SELECT COUNT(id) AS total FROM orders")->fetch_as
 
     <!-- Pesanan Masuk -->
     <h3 class="text-xl font-bold mb-2">Pesanan Masuk</h3>
-    <table class="w-full bg-white rounded-lg shadow-lg mb-6">
+    <table class="w-full bg-white rounded-lg shadow-lg">
         <thead>
             <tr class="bg-gray-200">
-                <th class="p-2">No</th>
+                <th class="p-2">Antrian ke-</th>
                 <th class="p-2">Meja</th>
                 <th class="p-2">Total</th>
                 <th class="p-2">Metode</th>
@@ -74,12 +78,9 @@ $total_pesanan = $conn->query("SELECT COUNT(id) AS total FROM orders")->fetch_as
             </tr>
         </thead>
         <tbody>
-            <?php 
-            $nomor = 1;
-            while ($row = $result->fetch_assoc()): 
-            ?>
+            <?php while ($row = $result->fetch_assoc()): ?>
                 <tr class="border-b">
-                    <td class="p-2 text-center"><?= $nomor++; ?></td>
+                    <td class="p-2 text-center"><?= $row['id']; ?></td>
                     <td class="p-2 text-center"><?= $row['id_meja'] ?></td>
                     <td class="p-2 text-center">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                     <td class="p-2 text-center"><?= $row['metode_pembayaran'] ?></td>
@@ -92,12 +93,13 @@ $total_pesanan = $conn->query("SELECT COUNT(id) AS total FROM orders")->fetch_as
         </tbody>
     </table>
 
+
     <!-- Riwayat Pesanan -->
     <h3 class="text-xl font-bold mb-2">Pesanan Selesai</h3>
     <table class="w-full bg-white rounded-lg shadow-lg">
         <thead>
             <tr class="bg-gray-200">
-                <th class="p-2">No</th>
+                <th class="p-2">Antrian ke-</th>
                 <th class="p-2">Meja</th>
                 <th class="p-2">Total</th>
                 <th class="p-2">Metode</th>
@@ -106,14 +108,40 @@ $total_pesanan = $conn->query("SELECT COUNT(id) AS total FROM orders")->fetch_as
         </thead>
         <tbody>
             <?php 
-            $no = 1;
             while ($row = $completed_orders->fetch_assoc()): ?>
                 <tr class="border-b">
-                    <td class="p-2 text-center"><?= $no++; ?></td>
+                    <td class="p-2 text-center"><?= $row['id'] ?></td>
                     <td class="p-2 text-center"><?= $row['id_meja'] ?></td>
                     <td class="p-2 text-center">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                     <td class="p-2 text-center"><?= $row['metode_pembayaran'] ?></td>
                     <td class="p-2 text-center"><?= date('d-m-Y H:i:s', strtotime($row['created_at'])) ?></td>
+                </tr>
+            <?php endwhile; ?>
+        </tbody>
+    </table>
+
+    <!-- Pesanan Gagal -->
+    <h3 class="text-xl font-bold mb-2">Pesanan Gagal</h3>
+    <table class="w-full bg-white rounded-lg shadow-lg mb-6">
+        <thead>
+            <tr class="bg-gray-200">
+                <th class="p-2">Antrian ke-</th>
+                <th class="p-2">Meja</th>
+                <th class="p-2">Total</th>
+                <th class="p-2">Metode</th>
+                <th class="p-2">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php 
+            while ($row = $failed_orders->fetch_assoc()): 
+            ?>
+                <tr class="border-b">
+                    <td class="p-2 text-center"><?= $row['id'] ?></td>
+                    <td class="p-2 text-center"><?= $row['id_meja'] ?></td>
+                    <td class="p-2 text-center">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
+                    <td class="p-2 text-center"><?= $row['metode_pembayaran'] ?></td>
+                    <td class="p-2 text-center"><?= ucfirst($row['status']) ?></td>
                 </tr>
             <?php endwhile; ?>
         </tbody>
