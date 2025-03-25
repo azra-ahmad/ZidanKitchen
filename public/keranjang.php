@@ -25,13 +25,12 @@ $menu_result = $conn->query($menu_query);
 $menu_data = [];
 
 while ($row = $menu_result->fetch_assoc()) {
-    // Hitung harga promo jika ada
     if ($row['promo_type'] == 'discount') {
         $row['harga_promo'] = $row['harga_asli'] - ($row['harga_asli'] * $row['discount'] / 100);
     } elseif ($row['promo_type'] == 'bundle') {
         $row['harga_promo'] = $row['bundle_price'];
     } else {
-        $row['harga_promo'] = null; // Tidak ada promo
+        $row['harga_promo'] = null;
     }
 
     $menu_data[$row['id_menu']] = $row;
@@ -39,15 +38,20 @@ while ($row = $menu_result->fetch_assoc()) {
 
 // Proses tambah/kurang jumlah di keranjang
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    foreach ($_SESSION['keranjang'] as $i => $item) {
-        $id_menu = $item['id_menu'];
+    if (isset($_POST['id_menu']) && isset($_POST['action'])) {
+        $id_menu = $_POST['id_menu'];
 
-        if (isset($_POST['tambah_' . $id_menu])) {
-            $_SESSION['keranjang'][$i]['jumlah']++;
-        } elseif (isset($_POST['kurang_' . $id_menu])) {
-            $_SESSION['keranjang'][$i]['jumlah']--;
-            if ($_SESSION['keranjang'][$i]['jumlah'] <= 0) {
-                array_splice($_SESSION['keranjang'], $i, 1);
+        foreach ($_SESSION['keranjang'] as $i => $item) {
+            if ($item['id_menu'] == $id_menu) {
+                if ($_POST['action'] === 'tambah') {
+                    $_SESSION['keranjang'][$i]['jumlah']++;
+                } elseif ($_POST['action'] === 'kurang') {
+                    $_SESSION['keranjang'][$i]['jumlah']--;
+                    if ($_SESSION['keranjang'][$i]['jumlah'] <= 0) {
+                        array_splice($_SESSION['keranjang'], $i, 1);
+                    }
+                }
+                break;
             }
         }
     }
@@ -84,7 +88,7 @@ $keranjang = $_SESSION['keranjang'];
     </div>
     <div class="max-w-4xl mx-auto p-6">
         <?php if (count($keranjang) > 0): ?>
-            <form method="POST" class="bg-white rounded-xl shadow-xl p-4 space-y-4 animate-fadeIn">
+            <div class="bg-white rounded-xl shadow-xl p-4 space-y-4 animate-fadeIn">
                 <?php
                 $total = 0;
                 foreach ($keranjang as $item):
@@ -111,9 +115,19 @@ $keranjang = $_SESSION['keranjang'];
 
                             <!-- Tombol Tambah Kurang -->
                             <div class="flex items-center mt-2 space-x-2">
-                                <button name="kurang_<?= ($item['id_menu']) ?>" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" type="submit">-</button>
+                                <form method="POST" action="keranjang.php">
+                                    <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
+                                    <input type="hidden" name="action" value="kurang">
+                                    <button class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" type="submit">-</button>
+                                </form>
+
                                 <span class="text-gray-700 font-semibold"><?= $item['jumlah']; ?></span>
-                                <button name="tambah_<?= ($item['id_menu']) ?>" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" type="submit">+</button>
+
+                                <form method="POST" action="keranjang.php">
+                                    <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
+                                    <input type="hidden" name="action" value="tambah">
+                                    <button class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" type="submit">+</button>
+                                </form>
                             </div>
                         </div>
 
@@ -131,10 +145,12 @@ $keranjang = $_SESSION['keranjang'];
                 </div>
 
                 <!-- Checkout -->
-                <button type="submit" class="w-full mt-4 bg-yellow-400 hover:bg-yellow-500 text-white font-semibold py-3 rounded-xl shadow-md transition duration-300">
-                    Checkout Sekarang
-                </button>
-            </form>
+                <form method="POST" action="checkout.php">
+                    <button type="submit" class="w-full mt-4 bg-yellow-400 hover:bg-yellow-500 text-white font-semibold py-3 rounded-xl shadow-md transition duration-300">
+                        Checkout Sekarang
+                    </button>
+                </form>
+            </div>
         <?php else: ?>
             <div class="text-center py-12">
                 <h2 class="text-2xl font-semibold text-gray-600">Keranjangmu kosong 😢</h2>

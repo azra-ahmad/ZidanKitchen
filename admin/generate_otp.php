@@ -14,6 +14,8 @@ $row = $result->fetch_assoc();
 
 if ($row && strtotime($row['otp_expiry']) > time()) {
     echo "OTP untuk Meja $id_meja masih berlaku: " . $row['kode_otp'];
+    echo '<br>';
+    echo '<a href="../public/login_otp.php">Login OTP</a>';
     exit();
 }
 
@@ -25,4 +27,5 @@ $sql = "UPDATE meja SET kode_otp = '$otp', otp_expiry = '$expiry', status='terse
 $conn->query($sql);
 
 echo "OTP baru untuk Meja $id_meja: $otp (berlaku hingga $expiry)";
+echo '<a href="../public/login_otp.php">Login OTP</a>';
 ?>

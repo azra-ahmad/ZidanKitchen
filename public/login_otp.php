@@ -15,5 +15,11 @@ session_start();
         <input type="text" name="otp" placeholder="Masukkan OTP" required>
         <button type="submit">Masuk</button>
     </form>
+    <br> 
+    <a href="../admin/generate_otp.php?id_meja=1">Login OTP meja 1</a>
+    <br> 
+    <a href="../admin/generate_otp.php?id_meja=2">Login OTP meja 2</a> 
+    <br> 
+    <a href="../admin/generate_otp.php?id_meja=3">Login OTP meja 3</a> 
 </body>
 </html>
