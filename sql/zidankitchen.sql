@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Mar 25, 2025 at 01:00 PM
+-- Generation Time: Mar 25, 2025 at 05:49 PM
 -- Server version: 8.0.30
 -- PHP Version: 8.1.10
 
@@ -20,6 +20,27 @@ SET time_zone = "+00:00";
 --
 -- Database: `zidankitchen`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `admin`
+--
+
+CREATE TABLE `admin` (
+  `id` int NOT NULL,
+  `username` varchar(50) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `admin`
+--
+
+INSERT INTO `admin` (`id`, `username`, `password`, `created_at`) VALUES
+(1, 'admin', '$2y$10$e8N7U46aYtNyMDqxORTJu.0BefDiPth2m9TvWDzjJNytUkAJampE6', '2025-03-25 16:47:18'),
+(2, 'apuila', '$2y$10$yP2jqJSyBdVLgCrdQNqUj.ZO0GCsQjEtlK19/YdMc0F4H8ovbaDG6', '2025-03-25 17:11:04');
 
 -- --------------------------------------------------------
 
@@ -81,7 +102,7 @@ CREATE TABLE `orders` (
   `id_meja` int NOT NULL,
   `total_harga` decimal(10,2) NOT NULL,
   `metode_pembayaran` enum('Cash','QRIS','E-Wallet') NOT NULL,
-  `status` enum('pending','paid','failed') DEFAULT 'pending',
+  `status` enum('pending','paid','failed','done') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'pending',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -91,11 +112,11 @@ CREATE TABLE `orders` (
 
 INSERT INTO `orders` (`id`, `id_meja`, `total_harga`, `metode_pembayaran`, `status`, `created_at`) VALUES
 (1, 1, '210000.00', 'Cash', 'pending', '2025-03-25 11:47:54'),
-(2, 1, '210000.00', 'QRIS', 'pending', '2025-03-25 11:48:16'),
+(2, 1, '210000.00', 'QRIS', 'done', '2025-03-25 11:48:16'),
 (3, 1, '100000.00', 'QRIS', 'pending', '2025-03-25 12:17:46'),
 (4, 1, '40000.00', 'Cash', 'pending', '2025-03-25 12:20:13'),
-(5, 1, '40000.00', 'QRIS', 'pending', '2025-03-25 12:22:21'),
-(6, 2, '40000.00', 'QRIS', 'pending', '2025-03-25 12:37:55');
+(5, 1, '40000.00', 'QRIS', 'paid', '2025-03-25 12:22:21'),
+(6, 2, '40000.00', 'QRIS', 'done', '2025-03-25 12:37:55');
 
 -- --------------------------------------------------------
 
@@ -161,6 +182,13 @@ INSERT INTO `promos` (`id`, `title`, `description`, `valid_until`, `discount`, `
 --
 
 --
+-- Indexes for table `admin`
+--
+ALTER TABLE `admin`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `username` (`username`);
+
+--
 -- Indexes for table `meja`
 --
 ALTER TABLE `meja`
@@ -194,6 +222,12 @@ ALTER TABLE `promos`
 --
 -- AUTO_INCREMENT for dumped tables
 --
+
+--
+-- AUTO_INCREMENT for table `admin`
+--
+ALTER TABLE `admin`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `meja`
