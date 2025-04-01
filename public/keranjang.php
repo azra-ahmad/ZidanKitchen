@@ -96,46 +96,46 @@ $keranjang = $_SESSION['keranjang'];
                     $subtotal = $harga_final * $item['jumlah'];
                     $total += $subtotal;
                 ?>
-                    <div class="flex items-center gap-4 bg-white rounded-lg shadow-sm p-4">
-                        <!-- Gambar -->
-                        <img src="../assets/images/<?= htmlspecialchars($item['gambar']); ?>" alt="<?= htmlspecialchars($item['nama_menu']); ?>" class="w-20 h-20 object-cover rounded-lg">
+                <div class="flex items-center gap-4 bg-white rounded-lg shadow-sm p-4">
+                    <!-- Gambar -->
+                    <img src="../assets/images/<?= htmlspecialchars($item['gambar']); ?>" alt="<?= htmlspecialchars($item['nama_menu']); ?>" class="w-20 h-20 object-cover rounded-lg">
 
-                        <!-- Info Produk -->
-                        <div class="flex-1">
-                            <h3 class="text-lg font-semibold"><?= htmlspecialchars($item['nama_menu']); ?></h3>
-                            
-                            <?php if (!empty($item['promo_type']) && $item['promo_type'] == 'discount'): ?>
-                                <span class="line-through text-red-400">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
-                                <span class="text-gray-700 font-semibold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?></span>
-                            <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'bundle'): ?>
-                                <span class="text-green-500 font-bold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?> (Paket)</span>
-                            <?php else: ?>
-                                <span class="text-gray-800 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
-                            <?php endif; ?>
+                    <!-- Info Produk -->
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold"><?= htmlspecialchars($item['nama_menu']); ?></h3>
+                        
+                        <?php if (!empty($item['promo_type']) && $item['promo_type'] == 'discount'): ?>
+                            <span class="line-through text-red-400">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
+                            <span class="text-gray-700 font-semibold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?></span>
+                        <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'bundle'): ?>
+                            <span class="text-green-500 font-bold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?> (Paket)</span>
+                        <?php else: ?>
+                            <span class="text-gray-800 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
+                        <?php endif; ?>
 
-                            <!-- Tombol Tambah Kurang -->
-                            <div class="flex items-center mt-2 space-x-2">
-                                <form method="POST" action="keranjang.php">
-                                    <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
-                                    <input type="hidden" name="action" value="kurang">
-                                    <button class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" type="submit">-</button>
-                                </form>
+                        <!-- Tombol Tambah Kurang -->
+                        <div class="flex items-center mt-2 space-x-2">
+                            <form method="POST" action="keranjang.php">
+                                <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
+                                <input type="hidden" name="action" value="kurang">
+                                <button class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" type="submit">-</button>
+                            </form>
 
-                                <span class="text-gray-700 font-semibold"><?= $item['jumlah']; ?></span>
+                            <span class="text-gray-700 font-semibold"><?= $item['jumlah']; ?></span>
 
-                                <form method="POST" action="keranjang.php">
-                                    <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
-                                    <input type="hidden" name="action" value="tambah">
-                                    <button class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" type="submit">+</button>
-                                </form>
-                            </div>
-                        </div>
-
-                        <!-- Subtotal -->
-                        <div class="text-right">
-                            <p class="text-blue-600 font-bold">Rp <?= number_format($subtotal, 0, ',', '.'); ?></p>
+                            <form method="POST" action="keranjang.php">
+                                <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
+                                <input type="hidden" name="action" value="tambah">
+                                <button class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" type="submit">+</button>
+                            </form>
                         </div>
                     </div>
+
+                    <!-- Subtotal -->
+                    <div class="text-right">
+                        <p class="text-blue-600 font-bold">Rp <?= number_format($subtotal, 0, ',', '.'); ?></p>
+                    </div>
+                </div>
                 <?php endforeach; ?>
 
                 <!-- Total -->
