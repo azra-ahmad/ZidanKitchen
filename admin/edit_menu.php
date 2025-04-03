@@ -17,8 +17,7 @@ if (isset($_POST['update'])) {
     $nama_menu = $_POST['nama_menu'];
     $harga = $_POST['harga'];
     $kategori = $_POST['kategori_menu'];
-    
-    // Update query tanpa gambar
+
     $query = "UPDATE menu SET nama_menu='$nama_menu', harga='$harga', kategori_menu='$kategori' WHERE id_menu=$id_menu";
 
     if ($conn->query($query)) {
@@ -27,33 +26,62 @@ if (isset($_POST['update'])) {
         echo "Gagal memperbarui menu: " . $conn->error;
     }
 }
-
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Menu</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto py-10">
-        <h2 class="text-2xl font-bold text-center mb-6">Edit Menu</h2>
-        <form method="POST" class="bg-white p-6 rounded shadow-md max-w-md mx-auto">
-            <label class="block mb-2">Nama Menu</label>
-            <input type="text" name="nama_menu" value="<?= htmlspecialchars($menu['nama_menu']) ?>" class="w-full p-2 border rounded mb-4" required>
 
-            <label class="block mb-2">Harga</label>
-            <input type="number" name="harga" value="<?= $menu['harga'] ?>" class="w-full p-2 border rounded mb-4" required>
+<body class="bg-gradient-to-br from-orange-50 to-red-100 min-h-screen flex">
+    <!-- Sidebar -->
+    <div class="h-screen w-64 bg-gradient-to-b from-orange-600 to-yellow-900 text-white p-5 shadow-lg fixed flex flex-col">
+        <h2 class="text-2xl font-bold text-center mb-6">Admin Panel</h2>
+        <nav class="flex-1">
+            <ul>
+                <li class="mb-4">
+                    <a href="dashboard.php" class="block p-3 rounded-lg hover:bg-orange-500">Dashboard</a>
+                </li>
+                <li class="mb-4">
+                    <a href="menu.php" class="block p-3 rounded-lg hover:bg-orange-500">Kelola Menu</a>
+                </li>
+                <li class="mb-4">
+                    <a href="orders.php" class="block p-3 rounded-lg hover:bg-orange-500">Pesanan</a>
+                </li>
+                <li class="mb-4">
+                    <a href="settings.php" class="block p-3 rounded-lg hover:bg-orange-500">Pengaturan</a>
+                </li>
+            </ul>
+        </nav>
+        <a href="logout.php" class="block p-3 rounded-lg bg-red-600 hover:bg-red-700 text-center">Logout</a>
+    </div>
 
-            <label class="block mb-2">Kategori</label>
-            <input type="text" name="kategori_menu" value="<?= htmlspecialchars($menu['kategori_menu']) ?>" class="w-full p-2 border rounded mb-4" required>
+    <!-- Content -->
+    <div class="flex-1 ml-64 p-10">
+        <h2 class="text-3xl font-bold text-orange-800 text-center mb-6">Edit Menu</h2>
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-lg mx-auto">
+            <form method="POST">
+                <label class="block font-semibold text-orange-700 mb-1">Nama Menu</label>
+                <input type="text" name="nama_menu" value="<?= htmlspecialchars($menu['nama_menu']) ?>" class="w-full p-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-orange-400" required>
 
-            <button type="submit" name="update" class="bg-blue-500 text-white px-4 py-2 rounded">Simpan Perubahan</button>
-            <a href="menu.php" class="bg-gray-500 text-white px-4 py-2 rounded">Batal</a>
-        </form>
+                <label class="block font-semibold text-orange-700 mb-1">Harga</label>
+                <input type="number" name="harga" value="<?= $menu['harga'] ?>" class="w-full p-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-orange-400" required>
+
+                <label class="block font-semibold text-orange-700 mb-1">Kategori</label>
+                <input type="text" name="kategori_menu" value="<?= htmlspecialchars($menu['kategori_menu']) ?>" class="w-full p-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-orange-400" required>
+
+                <div class="flex justify-between">
+                    <button type="submit" name="update" class="bg-gradient-to-r from-orange-500 to-red-500 text-white px-5 py-2 rounded-lg shadow-md hover:opacity-90 transition">Simpan Perubahan</button>
+                    <a href="menu.php" class="bg-gray-500 text-white px-5 py-2 rounded-lg shadow-md hover:opacity-80">Batal</a>
+                </div>
+            </form>
+        </div>
     </div>
 </body>
+
 </html>
