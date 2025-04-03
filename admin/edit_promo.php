@@ -27,6 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = $_POST['title'];
     $description = $_POST['description'];
     $discount = $_POST['discount'];
+    $promo_type = $_POST['promo_type'];
+    $category_target = $_POST['category_target'] ?? null;
+    $valid_until = $_POST['valid_until'] ?? null;
+    $bundle_price = $_POST['bundle_price'] ?? null;
 
     if ($_FILES['image']['name']) {
         $image = $_FILES['image']['name'];
@@ -35,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $image = $promo['image'];
     }
 
-    $updateQuery = $conn->prepare("UPDATE promos SET title = ?, description = ?, discount = ?, image = ? WHERE id = ?");
-    $updateQuery->bind_param("ssdsi", $title, $description, $discount, $image, $id);
+    $updateQuery = $conn->prepare("UPDATE promos SET title = ?, description = ?, valid_until = ?, discount = ?, promo_type = ?, category_target = ?, bundle_price = ?, image = ? WHERE id = ?");
+    $updateQuery->bind_param("sssissisi", $title, $description, $valid_until, $discount, $promo_type, $category_target, $bundle_price, $image, $id);
 
     if ($updateQuery->execute()) {
         echo "<script>alert('Promo berhasil diperbarui!'); window.location.href='promos.php';</script>";
@@ -68,8 +72,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <textarea name="description" class="w-full p-2 border rounded-lg" required><?= htmlspecialchars($promo['description']) ?></textarea>
         </div>
         <div class="mb-4">
+            <label class="block text-gray-700">Tanggal Berlaku</label>
+            <input type="date" name="valid_until" value="<?= $promo['valid_until'] ?>" class="w-full p-2 border rounded-lg">
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-700">Jenis Promo</label>
+            <select name="promo_type" class="w-full p-2 border rounded-lg" required>
+                <option value="discount" <?= $promo['promo_type'] == 'discount' ? 'selected' : '' ?>>Diskon</option>
+                <option value="buy2get1" <?= $promo['promo_type'] == 'buy2get1' ? 'selected' : '' ?>>Beli 2 Gratis 1</option>
+                <option value="bundle" <?= $promo['promo_type'] == 'bundle' ? 'selected' : '' ?>>Bundle</option>
+            </select>
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-700">Kategori Target</label>
+            <select name="category_target" class="w-full p-2 border rounded-lg">
+                <option value="">-- Pilih Kategori --</option>
+                <option value="makanan" <?= $promo['category_target'] == 'makanan' ? 'selected' : '' ?>>Makanan</option>
+                <option value="minuman" <?= $promo['category_target'] == 'minuman' ? 'selected' : '' ?>>Minuman</option>
+                <option value="dessert" <?= $promo['category_target'] == 'dessert' ? 'selected' : '' ?>>Dessert</option>
+            </select>
+        </div>
+        <div class="mb-4">
             <label class="block text-gray-700">Diskon (%)</label>
-            <input type="number" name="discount" value="<?= $promo['discount'] ?>" class="w-full p-2 border rounded-lg" required>
+            <input type="number" name="discount" value="<?= $promo['discount'] ?>" class="w-full p-2 border rounded-lg">
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-700">Harga Bundle</label>
+            <input type="number" name="bundle_price" value="<?= $promo['bundle_price'] ?>" class="w-full p-2 border rounded-lg">
         </div>
         <div class="mb-4">
             <label class="block text-gray-700">Gambar Promo</label>
