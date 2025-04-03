@@ -1,5 +1,12 @@
 <?php
-include('../config/db.php');
+session_start();
+if (!isset($_SESSION['admin_logged_in'])) {
+    header("Location: login.php");
+    exit;
+}
+
+include '../config/db.php';
+date_default_timezone_set('Asia/Jakarta');
 
 if (!isset($conn)) {
     die("Error: Koneksi database tidak tersedia.");
