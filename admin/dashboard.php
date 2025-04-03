@@ -48,10 +48,7 @@ $total_pesanan = $conn->query("SELECT COUNT(id) AS total FROM orders")->fetch_as
                     <a href="menu.php" class="block p-3 rounded-lg hover:bg-orange-500">Kelola Menu</a>
                 </li>
                 <li class="mb-4">
-                    <a href="orders.php" class="block p-3 rounded-lg hover:bg-orange-500">Pesanan</a>
-                </li>
-                <li class="mb-4">
-                    <a href="settings.php" class="block p-3 rounded-lg hover:bg-orange-500">Pengaturan</a>
+                    <a href="promos.php" class="block p-3 rounded-lg hover:bg-orange-500">Kelola Promo</a>
                 </li>
             </ul>
         </nav>

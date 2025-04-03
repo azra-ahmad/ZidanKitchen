@@ -1,5 +1,12 @@
 <?php
-include('../config/db.php');
+session_start();
+if (!isset($_SESSION['admin_logged_in'])) {
+    header("Location: login.php");
+    exit;
+}
+
+include '../config/db.php';
+date_default_timezone_set('Asia/Jakarta');
 
 if (!isset($conn)) {
     die("Error: Koneksi database tidak tersedia.");
@@ -32,10 +39,7 @@ $result = $conn->query("SELECT * FROM menu");
                     <a href="menu.php" class="block p-3 rounded-lg bg-orange-500">Kelola Menu</a>
                 </li>
                 <li class="mb-4">
-                    <a href="orders.php" class="block p-3 rounded-lg hover:bg-orange-500">Pesanan</a>
-                </li>
-                <li class="mb-4">
-                    <a href="settings.php" class="block p-3 rounded-lg hover:bg-orange-500">Pengaturan</a>
+                    <a href="promos.php" class="block p-3 rounded-lg hover:bg-orange-500">Kelola Promo</a>
                 </li>
             </ul>
         </nav>
