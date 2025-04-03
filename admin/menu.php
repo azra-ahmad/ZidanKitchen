@@ -48,7 +48,7 @@ $result = $conn->query("SELECT * FROM menu");
 
     <!-- Content -->
     <div class="flex-1 ml-64 p-6">
-        <h2 class="text-3xl font-bold text-orange-800 text-center mb-6">Daftar Menu</h2>
+        <h2 class="text-3xl font-bold text-orange-600 text-center">Daftar Menu</h2>
         <a href="add_menu.php" class="bg-gradient-to-r from-orange-500 to-red-500 text-white px-5 py-2 rounded-lg shadow-md hover:opacity-90 transition mb-4 inline-block">Tambah Menu</a>
         
         <table class="w-full bg-white shadow-lg rounded-lg overflow-hidden">
