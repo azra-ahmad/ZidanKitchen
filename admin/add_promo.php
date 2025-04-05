@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="space-y-2">
                             <label class="block text-gray-700 font-medium">Kategori Target</label>
                             <select name="category_target" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-300 focus:border-orange-300">
-                                <option value="">Semua Kategori</option>
+                                <option value="">Pilih Kategori</option>
                                 <option value="makanan">Makanan</option>
                                 <option value="minuman">Minuman</option>
                                 <option value="dessert">Dessert</option>
@@ -204,6 +204,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 e.preventDefault();
                 discount.focus();
                 return false;
+            }
+
+            const select = document.querySelector('select[name="category_target"]');
+            if(select.value === "") {
+                select.value = null;
             }
             
             const startDate = new Date(document.querySelector('input[name="start_date"]').value);
