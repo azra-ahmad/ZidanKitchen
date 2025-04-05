@@ -131,6 +131,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update'])) {
                         <i class="fas fa-tags mr-3"></i> Kelola Promo
                     </a>
                 </li>
+                <li>
+                    <a href="order.php" class="flex items-center p-3 rounded-lg hover:bg-orange-500 transition-colors">
+                        <i class="fas fa-receipt mr-3"></i> Kelola Pesanan
+                    </a>
+                </li>
             </ul>
         </nav>
         <a href="logout.php" class="flex items-center p-3 rounded-lg bg-red-600 hover:bg-red-700 transition-colors">
