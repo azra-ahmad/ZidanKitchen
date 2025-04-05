@@ -25,25 +25,37 @@ $result = $conn->query("SELECT * FROM menu");
     <title>Sidebar Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body class="bg-gradient-to-br from-orange-50 to-red-100 min-h-screen flex">
     <!-- Sidebar -->
     <div class="h-screen w-64 bg-gradient-to-b from-orange-600 to-yellow-900 text-white p-5 shadow-lg fixed flex flex-col">
-        <h2 class="text-2xl font-bold text-center mb-6">Admin Panel</h2>
+        <div class="text-center mb-8 pt-4">
+            <h2 class="text-2xl font-bold mb-2">Admin Panel</h2>
+            <div class="w-16 h-1 bg-orange-300 mx-auto rounded-full"></div>
+        </div>
         <nav class="flex-1">
-            <ul>
-                <li class="mb-4">
-                    <a href="dashboard.php" class="block p-3 rounded-lg hover:bg-orange-500">Dashboard</a>
+            <ul class="space-y-2">
+                <li>
+                    <a href="dashboard.php" class="flex items-center p-3 rounded-lg hover:bg-orange-500 transition-colors">
+                        <i class="fas fa-tachometer-alt mr-3"></i> Dashboard
+                    </a>
                 </li>
-                <li class="mb-4">
-                    <a href="menu.php" class="block p-3 rounded-lg bg-orange-500">Kelola Menu</a>
+                <li>
+                    <a href="menu.php" class="flex items-center p-3 rounded-lg bg-orange-500 transition-colors">
+                        <i class="fas fa-utensils mr-3"></i> Kelola Menu
+                    </a>
                 </li>
-                <li class="mb-4">
-                    <a href="promos.php" class="block p-3 rounded-lg hover:bg-orange-500">Kelola Promo</a>
+                <li>
+                    <a href="promos.php" class="flex items-center p-3 rounded-lg hover:bg-orange-500 transition-colors">
+                        <i class="fas fa-tags mr-3"></i> Kelola Promo
+                    </a>
                 </li>
             </ul>
         </nav>
-        <a href="logout.php" class="block p-3 rounded-lg bg-red-600 hover:bg-red-700 text-center">Logout</a>
+        <a href="logout.php" class="flex items-center p-3 rounded-lg bg-red-600 hover:bg-red-700 transition-colors">
+            <i class="fas fa-sign-out-alt mr-3"></i> Logout
+        </a>
     </div>
 
     <!-- Content -->
