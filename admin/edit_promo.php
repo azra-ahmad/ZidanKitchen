@@ -32,13 +32,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $end_date = $_POST['end_date'];
     $category_target = $_POST['category_target'] ?? null;
     $bundle_price = $_POST['bundle_price'] ?? null;
-
+    
+    // Validasi periode promo
+    if (strtotime($start_date) > strtotime($end_date)) {
+        die("<script>alert('Tanggal mulai tidak boleh setelah tanggal berakhir'); window.location.href='promos.php';</script>");
+    } 
+    
     if ($_FILES['image']['name']) {
         $image = $_FILES['image']['name'];
         move_uploaded_file($_FILES['image']['tmp_name'], "../assets/images/$image");
     } else {
         $image = $promo['image'];
     }
+
 
     $updateQuery = $conn->prepare("UPDATE promos SET title = ?, description = ?, start_date = ?, end_date = ?, discount = ?, promo_type = ?, category_target = ?, bundle_price = ?, image = ? WHERE id = ?");
     $updateQuery->bind_param("ssssissisi", $title, $description, $start_date, $end_date, $discount, $promo_type, $category_target, $bundle_price, $image, $id);

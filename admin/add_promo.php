@@ -9,6 +9,7 @@ include '../config/db.php';
 date_default_timezone_set('Asia/Jakarta');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    
     $title = $_POST['title'];
     $description = $_POST['description'];
     $discount = $_POST['discount'];
@@ -17,6 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $end_date = $_POST['end_date'];
     $category_target = $_POST['category_target'] ?? null;
     $bundle_price = $_POST['bundle_price'] ?? null;
+    
+    // Validasi periode promo
+    if (strtotime($start_date) > strtotime($end_date)) {
+        die("<script>alert('Tanggal mulai tidak boleh setelah tanggal berakhir'); window.location.href='promos.php';</script>");
+    } 
 
     // Cek apakah ada file yang diupload
     if ($_FILES['image']['name']) {
@@ -25,14 +31,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $image = "default.png"; // Jika tidak ada gambar, pakai default
     }
-
+    
     $query = $conn->prepare("INSERT INTO promos (title, description, start_date, end_date, discount, promo_type, category_target, bundle_price, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $query->bind_param("ssssissis", $title, $description, $start_date, $end_date, $discount, $promo_type, $category_target, $bundle_price, $image);
 
     if ($query->execute()) {
         echo "<script>alert('Promo berhasil ditambahkan!'); window.location.href='promos.php';</script>";
     } else {
-        echo "<script>alert('Gagal menambahkan promo!');</script>";
+        echo "<script>alert('Gagal menambahkan promo!'); window.location.href='promos.php';</script>";
     }
 }
 ?>
