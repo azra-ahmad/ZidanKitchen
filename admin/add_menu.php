@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <input type="file" name="model_zip" accept=".zip" required class="w-full px-4 py-2 border rounded-lg">
             </div>
             <div class="flex justify-between">
-                <a href="../admin/dashboard.php" class="bg-yellow-900 text-white py-2 px-6 rounded-lg shadow-md hover:bg-gray-500 transition">Kembali</a>
+                <a href="menu.php" class="bg-yellow-900 text-white py-2 px-6 rounded-lg shadow-md hover:bg-gray-500 transition">Kembali</a>
                 <button type="submit" class="bg-orange-500 text-white py-2 px-6 rounded-lg shadow-md hover:bg-orange-600 transition">Tambah Menu</button>
             </div>
         </form>
