@@ -99,7 +99,7 @@ $weekly_orders = $conn->query("
                     </a>
                 </li>
                 <li>
-                    <a href="orders.php" class="flex items-center p-3 rounded-lg hover:bg-orange-500 transition-colors">
+                    <a href="order.php" class="flex items-center p-3 rounded-lg hover:bg-orange-500 transition-colors">
                         <i class="fas fa-receipt mr-3"></i> Kelola Pesanan
                     </a>
                 </li>
@@ -131,7 +131,7 @@ $weekly_orders = $conn->query("
             </div>
         <?php endif; ?>
         
-        <!-- Header -->
+        <!-- Header Dashboard-->
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-orange-600">
                 <i class="fas fa-tachometer-alt mr-2"></i> Dashboard Admin
@@ -228,132 +228,6 @@ $weekly_orders = $conn->query("
             <div class="bg-white rounded-xl shadow-md p-6">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">Pendapatan 7 Hari Terakhir</h3>
                 <canvas id="revenueChart" height="250"></canvas>
-            </div>
-        </div>
-
-        <!-- Current Orders -->
-        <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
-            <div class="p-6 border-b border-gray-100">
-                <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <i class="fas fa-clock mr-2 text-orange-500"></i> Pesanan Masuk
-                    <span class="ml-auto text-sm font-normal text-gray-500">
-                        <?= $result->num_rows ?> pesanan
-                    </span>
-                </h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        <?php 
-                        // Reset pointer to loop through results again
-                        $result->data_seek(0);
-                        while ($row = $result->fetch_assoc()): 
-                        ?>
-                        <tr class="hover:bg-orange-50">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= ucfirst($row['metode_pembayaran']) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="status-badge <?= $row['status'] ?>">
-                                    <?= ucfirst($row['status']) ?>
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <?= date('H:i', strtotime($row['created_at'])) ?>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <!-- DETAIL BELOM DIBUAT -->
-                                <!-- <a href="proses_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
-                                    <i class="fas fa-eye"></i> Detail
-                                </a> -->
-                                <a href="proses_pesanan.php?id=<?= $row['id'] ?>" class="text-green-600 hover:text-green-900">
-                                    <i class="fas fa-check"></i> Selesai
-                                </a>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Recent Completed Orders -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                <div class="p-6 border-b border-gray-100">
-                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-check-circle mr-2 text-green-500"></i> Pesanan Selesai Terakhir
-                    </h3>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <?php while ($row = $completed_orders->fetch_assoc()): ?>
-                            <tr class="hover:bg-green-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= date('d/m H:i', strtotime($row['created_at'])) ?>
-                                </td>
-                            </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Failed Orders -->
-            <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                <div class="p-6 border-b border-gray-100">
-                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-times-circle mr-2 text-red-500"></i> Pesanan Gagal Terakhir
-                    </h3>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <?php while ($row = $failed_orders->fetch_assoc()): ?>
-                            <tr class="hover:bg-red-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= date('d/m H:i', strtotime($row['created_at'])) ?>
-                                </td>
-                            </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
             </div>
         </div>
     </div>
