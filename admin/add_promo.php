@@ -13,8 +13,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = $_POST['description'];
     $discount = $_POST['discount'];
     $promo_type = $_POST['promo_type'];
+    $start_date = $_POST['start_date'];
+    $end_date = $_POST['end_date'];
     $category_target = $_POST['category_target'] ?? null;
-    $valid_until = $_POST['valid_until'];
     $bundle_price = $_POST['bundle_price'] ?? null;
 
     // Cek apakah ada file yang diupload
@@ -25,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $image = "default.png"; // Jika tidak ada gambar, pakai default
     }
 
-    $query = $conn->prepare("INSERT INTO promos (title, description, valid_until, discount, promo_type, category_target, bundle_price, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $query->bind_param("sssissis", $title, $description, $valid_until, $discount, $promo_type, $category_target, $bundle_price, $image);
+    $query = $conn->prepare("INSERT INTO promos (title, description, start_date, end_date, discount, promo_type, category_target, bundle_price, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $query->bind_param("ssssissis", $title, $description, $start_date, $end_date, $discount, $promo_type, $category_target, $bundle_price, $image);
 
     if ($query->execute()) {
         echo "<script>alert('Promo berhasil ditambahkan!'); window.location.href='promos.php';</script>";
@@ -58,8 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <textarea name="description" class="w-full p-2 border rounded-lg" required></textarea>
         </div>
         <div class="mb-4">
-            <label class="block text-gray-700">Tanggal Berlaku</label>
-            <input type="date" name="valid_until" class="w-full p-2 border rounded-lg">
+            <label class="block text-gray-700">Tanggal Mulai</label>
+            <input type="date" name="start_date" class="w-full p-2 border rounded-lg">
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-700">Tanggal Berakhir</label>
+            <input type="date" name="end_date" class="w-full p-2 border rounded-lg">
         </div>
         <div class="mb-4">
             <label class="block text-gray-700">Jenis Promo</label>

@@ -13,15 +13,25 @@ while ($row = $kategori_result->fetch_assoc()) {
     $kategori_list[] = $row['kategori_menu'];
 }
 
-$menu_query = "SELECT 
+$menu_query = "
+SELECT 
     m.*, 
     p.promo_type, 
     p.discount, 
     p.bundle_price
-FROM menu m 
-LEFT JOIN promos p ON m.kategori_menu = p.category_target 
-    AND p.valid_until IS NOT NULL
-    AND p.valid_until >= CURDATE()";
+FROM menu m
+LEFT JOIN promos p
+    ON  m.kategori_menu = p.category_target
+    AND p.start_date <= CURDATE()
+    AND p.end_date >= CURDATE()
+    AND p.discount = (
+        SELECT MAX(p2.discount)
+        FROM promos p2 WHERE p2.category_target = m.kategori_menu
+        AND p2.start_date <= CURDATE()
+        AND p2.end_date >= CURDATE()
+        AND p2.promo_type = 'discount'
+    )
+";
 
 $menus = $conn->query($menu_query);
 ?>

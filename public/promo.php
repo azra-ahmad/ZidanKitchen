@@ -4,7 +4,7 @@ include '../config/db.php';
 // Ambil promo yang masih berlaku
 date_default_timezone_set('Asia/Jakarta');
 $today = date('Y-m-d');
-$promo_query = "SELECT * FROM promos WHERE valid_until >= '$today' ORDER BY valid_until ASC";
+$promo_query = "SELECT * FROM promos WHERE CURDATE() BETWEEN start_date AND end_date";
 $promos = $conn->query($promo_query);
 ?>
 
@@ -25,7 +25,8 @@ $promos = $conn->query($promo_query);
                 <div class="bg-white p-4 rounded-xl shadow-lg hover:shadow-xl transition-all relative">
                     <img src="../assets/images/<?= $promo['image']; ?>" alt="<?= $promo['title']; ?>" class="w-full h-48 object-cover rounded-lg">
                     <h2 class="text-xl font-semibold mt-4"> <?= $promo['title']; ?> </h2>
-                    <p class="text-gray-500 text-sm mt-1">Berlaku hingga: <?= date('d M Y', strtotime($promo['valid_until'])); ?></p>
+                    <p class="text-gray-500 text-sm mt-1">Berlaku dari: <?= date('d M Y', strtotime($promo['start_date'])); ?></p>
+                    <p class="text-gray-500 text-sm mt-1">Berlaku hingga: <?= date('d M Y', strtotime($promo['end_date'])); ?></p>
                     <p class="mt-2 text-gray-700"> <?= $promo['description']; ?> </p>
                     
                     <?php if ($promo['promo_type'] == 'discount'): ?>

@@ -55,7 +55,8 @@ $result = $conn->query("SELECT * FROM promos");
                 <tr>
                     <th class="p-3">Judul</th>
                     <th class="p-3">Deskripsi</th>
-                    <th class="p-3">Berlaku Sampai</th>
+                    <th class="p-3">Tanggal Mulai</th>
+                    <th class="p-3">Tanggal Berakhir</th>
                     <th class="p-3">Jenis Promo</th>
                     <th class="p-3">Diskon (%)</th>
                     <th class="p-3">Kategori</th>
@@ -68,7 +69,8 @@ $result = $conn->query("SELECT * FROM promos");
                     <tr class="border-b hover:bg-orange-100">
                         <td class="p-3"> <?= htmlspecialchars($row['title']) ?> </td>
                         <td class="p-3"> <?= htmlspecialchars($row['description']) ?> </td>
-                        <td class="p-3"> <?= htmlspecialchars($row['valid_until']) ?> </td>
+                        <td class="p-3"> <?= htmlspecialchars($row['start_date']) ?> </td>
+                        <td class="p-3"> <?= htmlspecialchars($row['end_date']) ?> </td>
                         <td class="p-3"> <?= htmlspecialchars($row['promo_type']) ?> </td>
                         <td class="p-3"> <?= htmlspecialchars($row['discount']) ?> </td>
                         <td class="p-3"> <?= htmlspecialchars($row['category_target']) ?> </td>

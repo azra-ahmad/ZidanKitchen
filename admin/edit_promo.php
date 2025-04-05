@@ -28,8 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = $_POST['description'];
     $discount = $_POST['discount'];
     $promo_type = $_POST['promo_type'];
+    $start_date = $_POST['start_date'];
+    $end_date = $_POST['end_date'];
     $category_target = $_POST['category_target'] ?? null;
-    $valid_until = $_POST['valid_until'] ?? null;
     $bundle_price = $_POST['bundle_price'] ?? null;
 
     if ($_FILES['image']['name']) {
@@ -39,8 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $image = $promo['image'];
     }
 
-    $updateQuery = $conn->prepare("UPDATE promos SET title = ?, description = ?, valid_until = ?, discount = ?, promo_type = ?, category_target = ?, bundle_price = ?, image = ? WHERE id = ?");
-    $updateQuery->bind_param("sssissisi", $title, $description, $valid_until, $discount, $promo_type, $category_target, $bundle_price, $image, $id);
+    $updateQuery = $conn->prepare("UPDATE promos SET title = ?, description = ?, start_date = ?, end_date = ?, discount = ?, promo_type = ?, category_target = ?, bundle_price = ?, image = ? WHERE id = ?");
+    $updateQuery->bind_param("ssssissisi", $title, $description, $start_date, $end_date, $discount, $promo_type, $category_target, $bundle_price, $image, $id);
 
     if ($updateQuery->execute()) {
         echo "<script>alert('Promo berhasil diperbarui!'); window.location.href='promos.php';</script>";
@@ -72,8 +73,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <textarea name="description" class="w-full p-2 border rounded-lg" required><?= htmlspecialchars($promo['description']) ?></textarea>
         </div>
         <div class="mb-4">
-            <label class="block text-gray-700">Tanggal Berlaku</label>
-            <input type="date" name="valid_until" value="<?= $promo['valid_until'] ?>" class="w-full p-2 border rounded-lg">
+            <label class="block text-gray-700">Tanggal Mulai</label>
+            <input type="date" name="start_date" value="<?= $promo['start_date'] ?>" class="w-full p-2 border rounded-lg">
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-700">Tanggal Berakhir</label>
+            <input type="date" name="end_date" value="<?= $promo['end_date'] ?>" class="w-full p-2 border rounded-lg">
         </div>
         <div class="mb-4">
             <label class="block text-gray-700">Jenis Promo</label>
