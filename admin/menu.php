@@ -64,6 +64,7 @@ function buildUrl($params) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kelola Menu</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/x-icon" href="../assets/images/logo_oren.png">
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
