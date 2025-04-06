@@ -2,7 +2,6 @@
 session_start();
 include '../config/db.php'; // Koneksi ke database
 
-// Jika keranjang kosong, set sebagai array kosong
 if (!isset($_SESSION['keranjang'])) {
     $_SESSION['keranjang'] = [];
 }
@@ -20,12 +19,15 @@ FROM menu m
 LEFT JOIN promos p ON m.kategori_menu = p.category_target 
     AND p.start_date <= CURDATE()
     AND p.end_date >= CURDATE()
-    AND p.discount = (
-        SELECT MAX(p2.discount)
-        FROM promos p2 WHERE p2.category_target = m.kategori_menu
-        AND p2.start_date <= CURDATE()
-        AND p2.end_date >= CURDATE()
-        AND p2.promo_type = 'discount'
+    AND (
+        (p.promo_type = 'discount' AND p.discount = (
+            SELECT MAX(p2.discount)
+            FROM promos p2 
+            WHERE p2.category_target = m.kategori_menu
+            AND p2.start_date <= CURDATE()
+            AND p2.end_date >= CURDATE()
+            AND p2.promo_type = 'discount'
+        )) OR p.promo_type IN ('bundle', 'buy2get1')
     )";
 
 $menu_result = $conn->query($menu_query);
@@ -43,7 +45,7 @@ while ($row = $menu_result->fetch_assoc()) {
     $menu_data[$row['id_menu']] = $row;
 }
 
-// Proses tambah/kurang jumlah di keranjang
+// Tambah/kurang jumlah item
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['id_menu']) && isset($_POST['action'])) {
         $id_menu = $_POST['id_menu'];
@@ -64,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Validasi item di keranjang
+// Validasi & update info produk
 foreach ($_SESSION['keranjang'] as $i => $item) {
     $id_menu = $item['id_menu'];
     if (!isset($menu_data[$id_menu])) {
@@ -100,7 +102,16 @@ $keranjang = $_SESSION['keranjang'];
                 $total = 0;
                 foreach ($keranjang as $item):
                     $harga_final = $item['harga_promo'] ?? $item['harga_asli'];
-                    $subtotal = $harga_final * $item['jumlah'];
+
+                    if (!empty($item['promo_type']) && $item['promo_type'] === 'buy2get1') {
+                        $gratis = floor($item['jumlah'] / 3);
+                        $jumlah_dibayar = $item['jumlah'] - $gratis;
+                        $subtotal = $harga_final * $jumlah_dibayar;
+                    } else {
+                        $jumlah_dibayar = $item['jumlah'];
+                        $subtotal = $harga_final * $item['jumlah'];
+                    }
+
                     $total += $subtotal;
                 ?>
                 <div class="flex items-center gap-4 bg-white rounded-lg shadow-sm p-4">
@@ -110,12 +121,15 @@ $keranjang = $_SESSION['keranjang'];
                     <!-- Info Produk -->
                     <div class="flex-1">
                         <h3 class="text-lg font-semibold"><?= htmlspecialchars($item['nama_menu']); ?></h3>
-                        
+
                         <?php if (!empty($item['promo_type']) && $item['promo_type'] == 'discount'): ?>
                             <span class="line-through text-red-400">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
                             <span class="text-gray-700 font-semibold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?></span>
                         <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'bundle'): ?>
                             <span class="text-green-500 font-bold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?> (Paket)</span>
+                        <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'buy2get1'): ?>
+                            <span class="text-orange-500 font-bold">Promo Beli 2 Gratis 1</span><br>
+                            <span class="text-gray-800 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?> x <?= $item['jumlah']; ?> (Bayar <?= $jumlah_dibayar ?>)</span>
                         <?php else: ?>
                             <span class="text-gray-800 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
                         <?php endif; ?>
@@ -151,7 +165,7 @@ $keranjang = $_SESSION['keranjang'];
                     <p class="text-2xl font-extrabold text-green-600">Rp <?= number_format($total, 0, ',', '.'); ?></p>
                 </div>
 
-                <!-- Checkout -->
+                <!-- Checkout Button-->
                 <form method="POST" action="checkout.php">
                     <button type="submit" class="w-full mt-4 bg-yellow-400 hover:bg-yellow-500 text-white font-semibold py-3 rounded-xl shadow-md transition duration-300">
                         Checkout Sekarang
