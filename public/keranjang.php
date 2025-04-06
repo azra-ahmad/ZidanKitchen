@@ -89,20 +89,54 @@ $keranjang = $_SESSION['keranjang'];
     <title>Keranjang - ZidanKitchen</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+        .promo-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            transform: rotate(15deg);
+        }
+        .item-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        /* Smooth transition untuk FAB */
+        .fab-button {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .fab-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-white min-h-screen font-sans">
-    <div class="sticky top-0 z-50 bg-white shadow-md px-4 py-4 flex justify-between items-center">
-        <h1 class="text-2xl font-bold text-blue-600">Keranjang</h1>
-        <a href="menu.php" class="text-blue-500 hover:text-blue-700">← Kembali</a>
-    </div>
-    <div class="max-w-4xl mx-auto p-6">
+<body class="bg-gradient-to-b from-blue-50 to-white min-h-screen">
+    <!-- Sticky Header -->
+    <header class="sticky top-0 z-50 bg-blue-600 shadow-lg">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-white">Keranjang Belanja</h1>
+            <a href="menu.php" class="text-blue-100 hover:text-white transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </a>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 max-w-2xl">
         <?php if (count($keranjang) > 0): ?>
-            <div class="bg-white rounded-xl shadow-xl p-4 space-y-4 animate-fadeIn">
+            <!-- Daftar Item -->
+            <div class="space-y-4 mb-6">
                 <?php
                 $total = 0;
                 foreach ($keranjang as $item):
                     $harga_final = $item['harga_promo'] ?? $item['harga_asli'];
-
+                    
                     if (!empty($item['promo_type']) && $item['promo_type'] === 'buy2get1') {
                         $gratis = floor($item['jumlah'] / 3);
                         $jumlah_dibayar = $item['jumlah'] - $gratis;
@@ -111,74 +145,120 @@ $keranjang = $_SESSION['keranjang'];
                         $jumlah_dibayar = $item['jumlah'];
                         $subtotal = $harga_final * $item['jumlah'];
                     }
-
                     $total += $subtotal;
                 ?>
-                <div class="flex items-center gap-4 bg-white rounded-lg shadow-sm p-4">
-                    <!-- Gambar -->
-                    <img src="../assets/images/<?= htmlspecialchars($item['gambar']); ?>" alt="<?= htmlspecialchars($item['nama_menu']); ?>" class="w-20 h-20 object-cover rounded-lg">
-
-                    <!-- Info Produk -->
-                    <div class="flex-1">
-                        <h3 class="text-lg font-semibold"><?= htmlspecialchars($item['nama_menu']); ?></h3>
-
-                        <?php if (!empty($item['promo_type']) && $item['promo_type'] == 'discount'): ?>
-                            <span class="line-through text-red-400">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
-                            <span class="text-gray-700 font-semibold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?></span>
-                        <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'bundle'): ?>
-                            <span class="text-green-500 font-bold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?> (Paket)</span>
-                        <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'buy2get1'): ?>
-                            <span class="text-orange-500 font-bold">Promo Beli 2 Gratis 1</span><br>
-                            <span class="text-gray-800 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?> x <?= $item['jumlah']; ?> (Bayar <?= $jumlah_dibayar ?>)</span>
-                        <?php else: ?>
-                            <span class="text-gray-800 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
-                        <?php endif; ?>
-
-                        <!-- Tombol Tambah Kurang -->
-                        <div class="flex items-center mt-2 space-x-2">
-                            <form method="POST" action="keranjang.php">
-                                <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
-                                <input type="hidden" name="action" value="kurang">
-                                <button class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" type="submit">-</button>
-                            </form>
-
-                            <span class="text-gray-700 font-semibold"><?= $item['jumlah']; ?></span>
-
-                            <form method="POST" action="keranjang.php">
-                                <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
-                                <input type="hidden" name="action" value="tambah">
-                                <button class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" type="submit">+</button>
-                            </form>
+                <div class="relative item-card bg-white rounded-xl shadow-md p-4 transition duration-300">
+                    <!-- Promo Badge -->
+                    <?php if (!empty($item['promo_type'])): ?>
+                        <div class="promo-badge bg-yellow-400 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">
+                            <?= strtoupper($item['promo_type']) ?>
                         </div>
-                    </div>
+                    <?php endif; ?>
+                    
+                    <div class="flex gap-4">
+                        <!-- Gambar Menu -->
+                        <div class="flex-shrink-0">
+                            <img src="../assets/images/<?= htmlspecialchars($item['gambar']); ?>" 
+                                 alt="<?= htmlspecialchars($item['nama_menu']); ?>" 
+                                 class="w-20 h-20 object-cover rounded-lg border border-gray-200">
+                        </div>
+                        
+                        <!-- Detail Menu -->
+                        <div class="flex-1">
+                            <h3 class="font-bold text-gray-800"><?= htmlspecialchars($item['nama_menu']); ?></h3>
+                            
+                            <!-- Harga -->
+                            <div class="mt-1">
+                                <?php if (!empty($item['promo_type']) && $item['promo_type'] == 'discount'): ?>
+                                    <span class="line-through text-red-500 text-sm">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
+                                    <span class="ml-2 text-green-600 font-bold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?></span>
+                                <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'bundle'): ?>
+                                    <span class="text-green-600 font-bold">Rp <?= number_format($item['harga_promo'], 0, ',', '.'); ?></span>
+                                    <span class="ml-2 text-xs text-gray-500">(Harga Paket)</span>
+                                <?php elseif (!empty($item['promo_type']) && $item['promo_type'] == 'buy2get1'): ?>
+                                    <span class="text-blue-600 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
+                                    <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Beli <?= $item['jumlah'] ?> Bayar <?= $jumlah_dibayar ?></span>
+                                <?php else: ?>
+                                    <span class="text-gray-800 font-bold">Rp <?= number_format($item['harga_asli'], 0, ',', '.'); ?></span>
+                                <?php endif; ?>
+                            </div>
+                            
+                            <!-- Quantity Control -->
+                            <div class="flex items-center mt-3">
+                                <!-- Form Kurang -->
+                                <form method="POST" action="keranjang.php" 
+                                    onsubmit="this.querySelector('button').innerHTML = '&lt;svg class=&quot;animate-spin h-4 w-4 text-white&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; fill=&quot;none&quot; viewBox=&quot;0 0 24 24&quot;&gt;&lt;circle class=&quot;opacity-25&quot; cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;10&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;4&quot;&gt;&lt;/circle&gt;&lt;path class=&quot;opacity-75&quot; fill=&quot;currentColor&quot; d=&quot;M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;';">
+                                    <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
+                                    <input type="hidden" name="action" value="kurang">
+                                    <button type="submit" class="bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600 transition">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+                                        </svg>
+                                    </button>
+                                </form>
 
-                    <!-- Subtotal -->
-                    <div class="text-right">
-                        <p class="text-blue-600 font-bold">Rp <?= number_format($subtotal, 0, ',', '.'); ?></p>
+                                <span class="mx-3 font-medium text-gray-700"><?= $item['jumlah']; ?></span>
+
+                                <!-- Form Tambah -->
+                                <form method="POST" action="keranjang.php" 
+                                    onsubmit="this.querySelector('button').innerHTML = '&lt;svg class=&quot;animate-spin h-4 w-4 text-white&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; fill=&quot;none&quot; viewBox=&quot;0 0 24 24&quot;&gt;&lt;circle class=&quot;opacity-25&quot; cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;10&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;4&quot;&gt;&lt;/circle&gt;&lt;path class=&quot;opacity-75&quot; fill=&quot;currentColor&quot; d=&quot;M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;';">
+                                    <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
+                                    <input type="hidden" name="action" value="tambah">
+                                    <button type="submit" class="bg-green-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-green-600 transition">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+
+                        </div>
                     </div>
                 </div>
                 <?php endforeach; ?>
-
-                <!-- Total -->
-                <div class="flex justify-between items-center mt-4">
-                    <h3 class="text-xl font-bold text-gray-700">Total:</h3>
-                    <p class="text-2xl font-extrabold text-green-600">Rp <?= number_format($total, 0, ',', '.'); ?></p>
-                </div>
-
-                <!-- Checkout Button-->
-                <form method="POST" action="checkout.php">
-                    <button type="submit" class="w-full mt-4 bg-yellow-400 hover:bg-yellow-500 text-white font-semibold py-3 rounded-xl shadow-md transition duration-300">
-                        Checkout Sekarang
-                    </button>
-                </form>
             </div>
+            <div class="fixed bottom-24 right-4 z-20 md:bottom-28 md:right-1/2 md:transform md:translate-x-1/2">
+                <a href="menu.php" class="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span class="sr-only">Tambah Menu</span>
+                </a>
+            </div>
+
+            
+            <div class="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 px-4 py-3 z-10">
+                <div class="max-w-2xl mx-auto flex justify-between items-center">
+                    <div>
+                        <p class="text-sm text-gray-600">Total Pembayaran</p>
+                        <p class="text-lg font-bold text-green-600">Rp <?= number_format($total, 0, ',', '.'); ?></p>
+                    </div>
+                    <form method="POST" action="checkout.php">
+                        <button type="submit" class="bg-yellow-400 hover:bg-yellow-500 text-white font-medium px-6 py-2 rounded-lg shadow transition flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            Checkout
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
         <?php else: ?>
+            <!-- Empty State -->
             <div class="text-center py-12">
-                <h2 class="text-2xl font-semibold text-gray-600">Keranjangmu kosong 😢</h2>
-                <p class="text-gray-400 mt-2">Yuk tambahkan menu favoritmu!</p>
-                <a href="menu.php" class="mt-6 inline-block bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-full">Lihat Menu</a>
+                <div class="mx-auto w-48 h-48 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-700 mb-2">Keranjang Kosong</h2>
+                <p class="text-gray-500 mb-6">Belum ada item di keranjang belanja Anda</p>
+                <a href="menu.php" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg shadow-md transition duration-300">
+                    Lihat Menu
+                </a>
             </div>
         <?php endif; ?>
-    </div>
+    </main>
 </body>
 </html>
