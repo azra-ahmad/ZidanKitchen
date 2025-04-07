@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Apr 07, 2025 at 11:05 AM
+-- Generation Time: Apr 07, 2025 at 02:12 PM
 -- Server version: 8.0.30
 -- PHP Version: 8.1.10
 
@@ -62,7 +62,8 @@ CREATE TABLE `customers` (
 
 INSERT INTO `customers` (`id`, `name`, `phone`, `table_id`, `created_at`) VALUES
 (1, 'Putri', '0888-8888-8888', 2, '2025-04-07 08:58:21'),
-(2, 'Putra', '0888-8888-8888', 1, '2025-04-07 09:59:25');
+(2, 'Putra', '0888-8888-8888', 1, '2025-04-07 09:59:25'),
+(3, 'Mulyono', '087654321', 1, '2025-04-07 14:10:33');
 
 -- --------------------------------------------------------
 
@@ -150,7 +151,8 @@ INSERT INTO `orders` (`id`, `id_meja`, `customer_id`, `total_harga`, `metode_pem
 (13, 3, NULL, '465000.00', 'QRIS', 'done', NULL, '2025-04-06 16:46:20'),
 (14, 2, NULL, '355000.00', 'QRIS', 'done', NULL, '2025-04-07 05:29:24'),
 (15, 2, NULL, '5000.00', 'QRIS', 'done', NULL, '2025-04-07 08:58:52'),
-(17, 1, 2, '255000.00', 'QRIS', 'pending', 'c41a2303-b5fb-487f-aa58-5fa7da703139', '2025-04-07 10:49:48');
+(17, 1, 2, '255000.00', 'QRIS', 'done', 'c41a2303-b5fb-487f-aa58-5fa7da703139', '2025-04-07 10:49:48'),
+(18, 1, 3, '150000.00', 'QRIS', 'done', '2e7217f7-ae7e-4cbb-8612-0af3622bd038', '2025-04-07 14:10:49');
 
 -- --------------------------------------------------------
 
@@ -209,7 +211,8 @@ INSERT INTO `order_items` (`id`, `order_id`, `id_menu`, `nama_menu`, `jumlah`, `
 (36, 17, 3, 'Coca Cola', 1, '5000.00', '5000.00'),
 (37, 17, 1, 'Sushi asli Jepun🍣', 3, '50000.00', '100000.00'),
 (38, 17, 1, 'Sushi asli Jepun🍣 (Gratis)', 1, '0.00', '0.00'),
-(39, 17, 2, 'Birthday Cake', 1, '150000.00', '150000.00');
+(39, 17, 2, 'Birthday Cake', 1, '150000.00', '150000.00'),
+(40, 18, 4, 'Gâteau Basque', 1, '150000.00', '150000.00');
 
 -- --------------------------------------------------------
 
@@ -306,7 +309,7 @@ ALTER TABLE `admin`
 -- AUTO_INCREMENT for table `customers`
 --
 ALTER TABLE `customers`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `meja`
@@ -324,13 +327,13 @@ ALTER TABLE `menu`
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
 
 --
 -- AUTO_INCREMENT for table `promos`

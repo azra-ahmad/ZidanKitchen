@@ -2,8 +2,13 @@
 session_start();
 include '../config/db.php'; // Koneksi ke database
 
+if (!isset($_SESSION['id_meja']) || !isset($_SESSION['customer_id'])) {
+    header("Location: order.php?table=".$_SESSION['id_meja'] ?? '');
+    exit;
+}
+
 if (!isset($_SESSION['keranjang'])) {
-    $_SESSION['keranjang'] = [];
+    $_SESSION['keranjang'] = []; // Init jika belum ada
 }
 
 // Ambil data menu dan promo

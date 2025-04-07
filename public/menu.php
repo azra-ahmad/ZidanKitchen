@@ -1,9 +1,9 @@
 <?php
 include '../config/db.php';
 session_start();
-if (!isset($_SESSION['id_meja'])) {
-    header("Location: index.php");
-    exit();
+if (!isset($_SESSION['id_meja']) || !isset($_SESSION['customer_id'])) {
+    header("Location: order.php?table=".$_SESSION['id_meja'] ?? '');
+    exit;
 }
 
 // Ambil daftar kategori
