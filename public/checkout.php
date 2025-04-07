@@ -1,70 +1,108 @@
 <?php
 session_start();
 include '../config/db.php';
-
-// Jika belum ada keranjang atau ID meja, redirect ke menu
-if (!isset($_SESSION['keranjang']) || count($_SESSION['keranjang']) === 0 || !isset($_SESSION['id_meja'])) {
+// Validate session and cart
+if (!isset($_SESSION['customer_id']) || !isset($_SESSION['id_meja']) || empty($_SESSION['keranjang'])) {
     header("Location: menu.php");
     exit;
 }
 
 $id_meja = $_SESSION['id_meja'];
+$customer_id = $_SESSION['customer_id'];
 $errors = [];
-$success = false;
 
-// Proses setelah form disubmit
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Pastikan ini adalah submit dari form checkout, bukan redirect dari keranjang
-    if (isset($_POST['submit_checkout'])) {
-        if (!isset($_POST['metode_pembayaran']) || empty($_POST['metode_pembayaran'])) {
-            $errors[] = "Metode pembayaran belum dipilih.";
-        } else {
-            $metode_pembayaran = $_POST['metode_pembayaran'];
-            $total_harga = 0;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_checkout'])) {
+    // Validate payment method
+    if (empty($_POST['metode_pembayaran'])) {
+        $errors[] = "Metode pembayaran belum dipilih.";
+    } else {
+        $metode_pembayaran = $_POST['metode_pembayaran'];
+        $total_harga = 0;
 
-            // Simpan order ke tabel orders
-            $sql_order = "INSERT INTO orders (id_meja, total_harga, metode_pembayaran, status, created_at) VALUES (?, ?, ?, 'pending', NOW())";
-            $stmt = $conn->prepare($sql_order);
-            $stmt->bind_param("ids", $id_meja, $total_harga, $metode_pembayaran);
-            $stmt->execute();
-            $order_id = $stmt->insert_id;
+        // Start transaction
+        $conn->begin_transaction();
 
-            // Simpan order_items (dengan Buy2Get1)
+        try {
+            // 1. Insert main order
+            $stmt_order = $conn->prepare("
+                INSERT INTO orders 
+                (id_meja, customer_id, total_harga, metode_pembayaran, status, created_at) 
+                VALUES (?, ?, 0, ?, 'pending', NOW())
+            ");
+            $stmt_order->bind_param("iis", $id_meja, $customer_id, $metode_pembayaran);
+            $stmt_order->execute();
+            $order_id = $conn->insert_id;
+
+            // 2. Process each cart item
             foreach ($_SESSION['keranjang'] as $item) {
-                $harga = isset($item['harga_promo']) && $item['harga_promo'] > 0 ? $item['harga_promo'] : $item['harga'];
+                $harga = $item['harga_promo'] > 0 ? $item['harga_promo'] : $item['harga'];
                 $jumlah = $item['jumlah'];
-
-                // --- Logika Buy 2 Get 1 Free ---
-                $gratis = intdiv($jumlah, 3); // beli 3 → bayar 2
-                $jumlah_bayar = $jumlah - $gratis;
-                $subtotal = $harga * $jumlah_bayar;
+                
+                // Buy 2 Get 1 logic
+                $gratis = intdiv($jumlah, 3);
+                $jumlah_dibayar = $jumlah - $gratis;
+                $subtotal = $harga * $jumlah_dibayar;
                 $total_harga += $subtotal;
 
-                // Simpan item
-                $sql_detail = "INSERT INTO order_items (order_id, id_menu, nama_menu, jumlah, harga, subtotal) VALUES (?, ?, ?, ?, ?, ?)";
-                $stmt = $conn->prepare($sql_detail);
-                $stmt->bind_param("iisidd", $order_id, $item['id_menu'], $item['nama_menu'], $jumlah, $harga, $subtotal);
-                $stmt->execute();
+                // Insert order item
+                $stmt_item = $conn->prepare("
+                    INSERT INTO order_items 
+                    (order_id, id_menu, nama_menu, jumlah, harga, subtotal) 
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ");
+                $stmt_item->bind_param(
+                    "iisidd", 
+                    $order_id, 
+                    $item['id_menu'], 
+                    $item['nama_menu'], 
+                    $jumlah, 
+                    $harga, 
+                    $subtotal
+                );
+                $stmt_item->execute();
+
+                // Insert free items if any
+                if ($gratis > 0) {
+                    $stmt_free = $conn->prepare("
+                        INSERT INTO order_items 
+                        (order_id, id_menu, nama_menu, jumlah, harga, subtotal) 
+                        VALUES (?, ?, ?, ?, 0, 0)
+                    ");
+                    $nama_gratis = $item['nama_menu'] . ' (Gratis)';
+                    $stmt_free->bind_param(
+                        "iisi", 
+                        $order_id, 
+                        $item['id_menu'], 
+                        $nama_gratis, 
+                        $gratis
+                    );
+                    $stmt_free->execute();
+                }
             }
 
-            // Update total_harga
-            $sql_update = "UPDATE orders SET total_harga = ? WHERE id = ?";
-            $stmt = $conn->prepare($sql_update);
-            $stmt->bind_param("di", $total_harga, $order_id);
-            $stmt->execute();
+            // 3. Update order total
+            $stmt_update = $conn->prepare("
+                UPDATE orders SET total_harga = ? WHERE id = ?
+            ");
+            $stmt_update->bind_param("di", $total_harga, $order_id);
+            $stmt_update->execute();
 
-            // Bersihkan keranjang
+            // Commit transaction
+            $conn->commit();
+
+            // Clear cart and redirect
             unset($_SESSION['keranjang']);
-            $success = true;
-
-            // Redirect ke pembayaran
-            if ($metode_pembayaran === 'QRIS') {
-                header("Location: payment.php?order_id=$order_id");
-                exit;
+            
+            if ($metode_pembayaran === 'Cash') {
+                header("Location: success.php?order_id=$order_id");
             } else {
-                header("Location: success.php");
-                exit;
+                header("Location: payment-midtrans.php?order_id=$order_id&total=$total_harga");
             }
+            exit;
+
+        } catch (Exception $e) {
+            $conn->rollback();
+            $errors[] = "Terjadi kesalahan sistem: " . $e->getMessage();
         }
     }
 }

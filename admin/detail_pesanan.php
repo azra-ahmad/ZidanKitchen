@@ -18,7 +18,7 @@ $order_id = intval($_GET['id']);
 
 // Fetch order details
 $order_query = $conn->prepare("
-    SELECT o.*, m.kode_otp 
+    SELECT o.* 
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
     WHERE o.id = ?
@@ -99,10 +99,10 @@ $items = $items_result->fetch_all(MYSQLI_ASSOC);
             </h2>
             
             <div class="flex items-center space-x-4">
-                <?php if ($order['status'] == 'pending' || $order['status'] == 'paid'): ?>
-                <a href="dashboard.php" class="text-gray-600 hover:text-orange-600 transition">
+                <a href="order.php" class="text-gray-600 hover:text-orange-600 transition">
                     <i class="fas fa-arrow-left mr-1"></i> Kembali
                 </a>
+                <?php if ($order['status'] == 'pending' || $order['status'] == 'paid'): ?>
                 <a href="proses_pesanan.php?id=<?= $order['id'] ?>" 
                    class="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-3 rounded-lg shadow-md hover:opacity-90 transition flex items-center">
                     <i class="fas fa-check-circle mr-2"></i> Proses Pesanan
@@ -136,7 +136,7 @@ $items = $items_result->fetch_all(MYSQLI_ASSOC);
                             </div>
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Meja:</span>
-                                <span class="font-medium">#<?= $order['id_meja'] ?> (OTP: <?= $order['kode_otp'] ?>)</span>
+                                <span class="font-medium"><?= $order['id_meja'] ?></span>
                             </div>
                         </div>
                     </div>

@@ -10,7 +10,7 @@ date_default_timezone_set('Asia/Jakarta');
 
 // Query for current orders (pending/paid)
 $current_orders = $conn->query("
-    SELECT o.*, m.kode_otp 
+    SELECT o.* 
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
     WHERE o.status IN ('pending', 'paid')
@@ -19,7 +19,7 @@ $current_orders = $conn->query("
 
 // Query for recently completed orders (done)
 $completed_orders = $conn->query("
-    SELECT o.*, m.kode_otp 
+    SELECT o.* 
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
     WHERE o.status = 'done'
@@ -29,7 +29,7 @@ $completed_orders = $conn->query("
 
 // Query for failed orders
 $failed_orders = $conn->query("
-    SELECT o.*, m.kode_otp 
+    SELECT o.* 
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
     WHERE o.status = 'failed'
@@ -149,7 +149,7 @@ $failed_orders = $conn->query("
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <?= date('H:i', strtotime($row['created_at'])) ?>
+                                <?= date('d/m H:i', strtotime($row['created_at'])) ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">

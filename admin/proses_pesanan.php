@@ -27,6 +27,6 @@ if ($stmt->execute()) {
 }
 
 // Kembali ke dashboard admin
-header("Location: dashboard.php");
+header("Location: order.php");
 exit;
 ?>
