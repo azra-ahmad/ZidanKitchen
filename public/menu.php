@@ -136,16 +136,35 @@ $menus = $conn->query($menu_query);
         <?php endwhile; ?>
     </div>
 
+  
     <!-- Floating Keranjang -->
-    <a href="keranjang.php" class="fixed bottom-6 right-6 bg-green-500 text-white px-4 py-3 rounded-full shadow-lg hover:bg-green-600 transition flex items-center space-x-2">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M3 3h2l.4 2M7 13h10l4-8H5.4"></path>
-            <circle cx="9" cy="21" r="1"></circle>
-            <circle cx="20" cy="21" r="1"></circle>
-        </svg>
-        <span>Keranjang</span>
-    </a>
+<a href="keranjang.php" class="fixed bottom-20 right-6 bg-green-500 text-white px-4 py-3 rounded-full shadow-lg hover:bg-green-600 transition flex items-center space-x-2 z-50">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M3 3h2l.4 2M7 13h10l4-8H5.4"></path>
+        <circle cx="9" cy="21" r="1"></circle>
+        <circle cx="20" cy="21" r="1"></circle>
+    </svg>
+    <span>Keranjang</span>
+</a>
 
+
+    <!-- Footer Navigation -->
+    <div class="bg-white border-t border-gray-200 py-3 px-4 sticky bottom-0">
+            <div class="flex justify-between items-center max-w-2xl mx-auto">
+                <a href="menu.php" class="text-gray-600 hover:text-blue-600 flex flex-col items-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                    <span class="text-xs mt-1">Menu</span>
+                </a>
+                <a href="success.php" class="text-blue-600 flex flex-col items-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                    <span class="text-xs mt-1">Pesanan</span>
+                </a>
+            </div>
+        </div>
 </body>
 
 </html>
