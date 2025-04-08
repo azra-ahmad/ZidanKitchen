@@ -95,25 +95,41 @@ function getOrderItems($order_id, $conn) {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pembayaran - ZidanKitchen</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://app.sandbox.midtrans.com/snap/snap.js"></script>
 </head>
 <body class="bg-gray-100">
-    <div class="min-h-screen flex items-center justify-center">
-        <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-            <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <h2 class="text-xl font-semibold mb-2">Mempersiapkan Pembayaran</h2>
-            <p class="text-gray-600 mb-6">Anda akan diarahkan ke halaman pembayaran...</p>
+    <div class="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
+        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-md w-full max-w-sm sm:max-w-md text-center">
+            <!-- Loading Spinner -->
+            <div class="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
             
+            <!-- Title -->
+            <h2 class="text-lg sm:text-xl font-semibold mb-2">Mempersiapkan Pembayaran</h2>
+            
+            <!-- Description -->
+            <p class="text-gray-600 text-sm sm:text-base mb-6">Anda akan diarahkan ke halaman pembayaran...</p>
+            
+            <!-- Midtrans Snap Script -->
             <script>
                 snap.pay('<?= $snapToken ?>', {
-                    onSuccess: (result) => window.location = 'success.php?order_id=<?= $order_id ?>',
-                    onPending: (result) => window.location = 'pending.php?order_id=<?= $order_id ?>',
-                    onError: (error) => window.location = 'error.php?order_id=<?= $order_id ?>',
-                    onClose: () => window.location = 'menu.php'
+                    onSuccess: function(result) {
+                        window.location = 'success.php?order_id=<?= $order_id ?>';
+                    },
+                    onPending: function(result) {
+                        window.location = 'pending.php?order_id=<?= $order_id ?>';
+                    },
+                    onError: function(error) {
+                        window.location = 'error.php?order_id=<?= $order_id ?>';
+                    },
+                    onClose: function() {
+                        window.location = 'menu.php';
+                    }
                 });
             </script>
         </div>
