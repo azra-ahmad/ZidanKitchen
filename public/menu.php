@@ -121,29 +121,112 @@ $menus = $conn->query($menu_query);
         .category-scroll {
             scroll-behavior: smooth;
         }
+
+
+        <style>@keyframes pop {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.3);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .cart-animate {
+            animation: pop 0.4s ease;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+
     </style>
 </head>
+
+<script>
+    function animateCart() {
+        const cartIcon = document.getElementById('cart-icon');
+        if (cartIcon) {
+            cartIcon.classList.add('cart-animate');
+            setTimeout(() => cartIcon.classList.remove('cart-animate'), 400);
+        }
+    }
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerText = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => document.body.removeChild(toast), 300);
+        }, 2000);
+    }
+
+    // Contoh pemanggilan saat tombol tambah diklik
+    document.addEventListener('DOMContentLoaded', function() {
+        const addButtons = document.querySelectorAll('.btn-tambah');
+
+        addButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                animateCart();
+                showToast('Berhasil ditambahkan ke keranjang');
+            });
+        });
+    });
+</script>
+
 
 <body class="min-h-screen m-0 p-0 pb-16">
 
     <!-- Header -->
-    <header class="sticky top-0 z-50 bg-white shadow-sm px-4 py-3 flex justify-between items-center border-b border-gray-100">
-        <div class="flex items-center space-x-2">
-            <div class="w-full h-full rounded-lg flex items-center justify-center overflow-hidden">
-                <img src="../assets/images/logo_biru.png" alt="Logo" class="w-20 h-20 object-contain">
+    <header class="sticky top-0 z-50 bg-white shadow-sm px-4 py-3 border-b border-gray-100">
+        <div class="flex justify-between items-center">
+            <!-- Logo dan Judul -->
+            <div class="flex items-center space-x-2">
+                <div class="w-full h-full rounded-lg flex items-center justify-center overflow-hidden">
+                    <img src="../assets/images/logo_biru.png" alt="Logo" class="w-20 h-20 object-contain">
+                </div>
+                <h1 class="text-3xl font-bold text-gray-800">
+                    Zidan<span class="text-blue-600">Kitchen</span>
+                </h1>
             </div>
-            <h1 class="text-3xl font-bold text-gray-800">Zidan<span class="text-blue-600">Kitchen</span></h1>
-        </div>
 
-        <a href="keranjang.php" class="relative">
-            <div class="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition">
-                <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
-                </svg>
-                <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">0</span>
-            </div>
-        </a>
+            <!-- Icon Keranjang -->
+            <a href="keranjang.php" class="relative">
+                <div class="p-3 rounded-full bg-gray-100 hover:bg-gray-200 transition">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z">
+                        </path>
+                    </svg>
+                </div>
+            </a>
+        </div>
     </header>
+
 
     <!-- Filter Kategori with Horizontal Scroll -->
     <div class="sticky top-16 z-40 bg-white/90 backdrop-blur-sm px-6 py-3 border-b border-gray-100">
@@ -217,7 +300,7 @@ $menus = $conn->query($menu_query);
                             <input type="hidden" name="harga" value="<?= $menu['harga']; ?>">
                             <input type="hidden" name="harga_promo" value="<?= $menu['harga_promo'] ?? ''; ?>">
                             <input type="hidden" name="gambar" value="<?= $menu['gambar']; ?>">
-                            <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2.5 rounded-lg transition font-medium text-sm shadow-md hover:shadow-lg">
+                            <button type="submit" class="btn-tambah w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2.5 rounded-lg transition font-medium text-sm shadow-md hover:shadow-lg">
                                 + Tambah ke Keranjang
                             </button>
                         </form>
@@ -226,17 +309,6 @@ $menus = $conn->query($menu_query);
             <?php endwhile; ?>
         </div>
     </main>
-
-    <!-- Floating Cart Button - Positioned above bottom navigation -->
-    <a href="keranjang.php" class="fixed bottom-20 right-6 bg-gradient-to-r from-green-500 to-green-600 text-white px-5 py-3 rounded-full shadow-xl floating-cart flex items-center space-x-2 z-50">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"></path>
-        </svg>
-        <span class="font-medium">Keranjang</span>
-        <?php if ($cart_count > 0): ?>
-            <span class="bg-white text-green-600 text-xs font-bold px-2 py-0.5 rounded-full"><?= $cart_count ?></span>
-        <?php endif; ?>
-    </a>
 
     <!-- Bottom Navigation - Simplified -->
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 py-2 px-4 shadow-lg">
@@ -260,38 +332,38 @@ $menus = $conn->query($menu_query);
 </html>
 
 <script>
-// Fungsi untuk update jumlah keranjang
-function updateCartCount() {
-    fetch('get_cart_count.php')
-        .then(response => response.json())
-        .then(data => {
-            // Update semua elemen cart count
-            document.querySelectorAll('.cart-count').forEach(el => {
-                if (data.count > 0) {
-                    el.textContent = data.count;
-                    el.style.display = 'block';
-                } else {
-                    el.style.display = 'none';
-                }
+    // Fungsi untuk update jumlah keranjang
+    function updateCartCount() {
+        fetch('get_cart_count.php')
+            .then(response => response.json())
+            .then(data => {
+                // Update semua elemen cart count
+                document.querySelectorAll('.cart-count').forEach(el => {
+                    if (data.count > 0) {
+                        el.textContent = data.count;
+                        el.style.display = 'block';
+                    } else {
+                        el.style.display = 'none';
+                    }
+                });
+            });
+    }
+
+    // Panggil saat halaman dimuat
+    document.addEventListener('DOMContentLoaded', updateCartCount);
+
+    // Jika menggunakan form tambah ke keranjang, panggil setelah submit
+    document.querySelectorAll('form[action="add_to_cart.php"]').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            fetch('add_to_cart.php', {
+                method: 'POST',
+                body: new FormData(this)
+            }).then(() => {
+                updateCartCount();
             });
         });
-}
-
-// Panggil saat halaman dimuat
-document.addEventListener('DOMContentLoaded', updateCartCount);
-
-// Jika menggunakan form tambah ke keranjang, panggil setelah submit
-document.querySelectorAll('form[action="add_to_cart.php"]').forEach(form => {
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        fetch('add_to_cart.php', {
-            method: 'POST',
-            body: new FormData(this)
-        }).then(() => {
-            updateCartCount();
-        });
     });
-});
 </script>
 
 <script>
