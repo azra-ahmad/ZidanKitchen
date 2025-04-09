@@ -1,6 +1,14 @@
 <?php
 include '../config/db.php';
 session_start();
+
+// Hitung jumlah item di keranjang
+$cart_count = 0;
+if (isset($_SESSION['cart']) && is_array($_SESSION['cart'])) {
+    $cart_count = count($_SESSION['cart']);
+}
+
+
 if (!isset($_SESSION['id_meja']) || !isset($_SESSION['customer_id'])) {
     header("Location: order.php?table=" . $_SESSION['id_meja'] ?? '');
     exit;
@@ -225,7 +233,9 @@ $menus = $conn->query($menu_query);
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"></path>
         </svg>
         <span class="font-medium">Keranjang</span>
-        <span class="bg-white text-green-600 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+        <?php if ($cart_count > 0): ?>
+            <span class="bg-white text-green-600 text-xs font-bold px-2 py-0.5 rounded-full"><?= $cart_count ?></span>
+        <?php endif; ?>
     </a>
 
     <!-- Bottom Navigation - Simplified -->
@@ -248,6 +258,41 @@ $menus = $conn->query($menu_query);
 </body>
 
 </html>
+
+<script>
+// Fungsi untuk update jumlah keranjang
+function updateCartCount() {
+    fetch('get_cart_count.php')
+        .then(response => response.json())
+        .then(data => {
+            // Update semua elemen cart count
+            document.querySelectorAll('.cart-count').forEach(el => {
+                if (data.count > 0) {
+                    el.textContent = data.count;
+                    el.style.display = 'block';
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+        });
+}
+
+// Panggil saat halaman dimuat
+document.addEventListener('DOMContentLoaded', updateCartCount);
+
+// Jika menggunakan form tambah ke keranjang, panggil setelah submit
+document.querySelectorAll('form[action="add_to_cart.php"]').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        fetch('add_to_cart.php', {
+            method: 'POST',
+            body: new FormData(this)
+        }).then(() => {
+            updateCartCount();
+        });
+    });
+});
+</script>
 
 <script>
     function filterMenu() {
