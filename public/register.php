@@ -13,12 +13,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Nama dan nomor HP wajib diisi");
     }
 
-    // 1. Cek status meja lagi (double validation)
-    $table_status = $conn->query("SELECT status FROM meja WHERE id_meja = $table_id")->fetch_assoc();
-    if ($table_status['status'] === 'digunakan') {
-        die("Meja $table_id sedang digunakan!");
-    }
-
     // 2. Simpan data customer
     $stmt = $conn->prepare("INSERT INTO customers (name, phone, table_id) VALUES (?, ?, ?)");
     $stmt->bind_param("ssi", $name, $phone, $table_id);
@@ -26,11 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$stmt->execute()) {
         die("Error: Gagal menyimpan data customer");
     }
-
     $customer_id = $conn->insert_id;
-
-    // 3. Update status meja
-    $conn->query("UPDATE meja SET status = 'digunakan' WHERE id_meja = $table_id");
 
     // 4. Set session
     $_SESSION['customer_id'] = $customer_id;
