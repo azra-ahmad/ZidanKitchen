@@ -23,24 +23,66 @@ while ($row = $kategori_result->fetch_assoc()) {
 
 $menu_query = "
 SELECT 
-    m.*, 
-    p.promo_type, 
-    p.discount, 
-    p.bundle_price
+    m.*,
+    (
+        SELECT p.id 
+        FROM promos p 
+        WHERE 
+            p.start_date <= CURDATE() 
+            AND p.end_date >= CURDATE()
+            AND (
+                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
+                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
+            )
+        LIMIT 1
+    ) AS promo_id,
+    (
+        SELECT p.promo_type 
+        FROM promos p 
+        WHERE 
+            p.start_date <= CURDATE() 
+            AND p.end_date >= CURDATE()
+            AND (
+                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
+                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
+            )
+        LIMIT 1
+    ) AS promo_type,
+    (
+        SELECT p.discount 
+        FROM promos p 
+        WHERE 
+            p.start_date <= CURDATE() 
+            AND p.end_date >= CURDATE()
+            AND p.promo_type = 'discount'
+            AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')
+        LIMIT 1
+    ) AS discount,
+    (
+        SELECT p.bundle_price 
+        FROM promos p 
+        WHERE 
+            p.start_date <= CURDATE() 
+            AND p.end_date >= CURDATE()
+            AND p.promo_type = 'bundle'
+            AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$')
+        LIMIT 1
+    ) AS bundle_price,
+    (
+        SELECT p.title 
+        FROM promos p 
+        WHERE 
+            p.start_date <= CURDATE() 
+            AND p.end_date >= CURDATE()
+            AND (
+                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
+                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
+            )
+        LIMIT 1
+    ) AS promo_title
 FROM menu m
-LEFT JOIN promos p
-    ON  m.kategori_menu = p.category_target
-    AND p.start_date <= CURDATE()
-    AND p.end_date >= CURDATE()
-    AND p.discount = (
-        SELECT MAX(p2.discount)
-        FROM promos p2 WHERE p2.category_target = m.kategori_menu
-        AND p2.start_date <= CURDATE()
-        AND p2.end_date >= CURDATE()
-        AND p2.promo_type = 'discount'
-    )
+ORDER BY m.nama_menu
 ";
-
 $menus = $conn->query($menu_query);
 ?>
 
@@ -264,9 +306,15 @@ $menus = $conn->query($menu_query);
                             <div class="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                                 -<?= $menu['discount'] ?>%
                             </div>
+                            <div class="absolute top-3 right-3 bg-white text-red-500 text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                                <?= $menu['promo_title'] ?>
+                            </div>
                         <?php elseif ($menu['promo_type'] == 'bundle'): ?>
                             <div class="absolute top-3 left-3 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                                 Paket Hemat
+                            </div>
+                            <div class="absolute top-3 right-3 bg-white text-green-500 text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                                <?= $menu['promo_title'] ?>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -279,15 +327,28 @@ $menus = $conn->query($menu_query);
 
                         <div class="mt-2">
                             <?php if ($menu['promo_type'] == 'discount'): ?>
-                                <?php $harga_promo = $menu['harga'] - ($menu['harga'] * $menu['discount'] / 100); ?>
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-lg font-bold text-gray-800">Rp <?= number_format($harga_promo, 0, ',', '.'); ?></span>
-                                    <span class="text-sm line-through text-gray-400">Rp <?= number_format($menu['harga'], 0, ',', '.'); ?></span>
+                                <?php 
+                                $harga_promo = $menu['harga'] * (1 - ($menu['discount'] / 100));
+                                $diskon_value = $menu['harga'] - $harga_promo;
+                                ?>
+                                <div class="space-y-1">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-lg font-bold text-gray-800">Rp <?= number_format($harga_promo, 0, ',', '.'); ?></span>
+                                        <span class="text-sm line-through text-gray-400">Rp <?= number_format($menu['harga'], 0, ',', '.'); ?></span>
+                                    </div>
+                                    <div class="text-xs text-green-600">
+                                        Hemat Rp <?= number_format($diskon_value, 0, ',', '.'); ?> (<?= $menu['discount'] ?>%)
+                                    </div>
                                 </div>
                             <?php elseif ($menu['promo_type'] == 'bundle'): ?>
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-lg font-bold text-green-600">Rp <?= number_format($menu['bundle_price'], 0, ',', '.'); ?></span>
-                                    <span class="text-xs text-gray-500">(Paket Hemat)</span>
+                                <div class="space-y-2">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-lg font-bold text-green-600">Rp <?= number_format($menu['bundle_price'], 0, ',', '.'); ?></span>
+                                        <span class="text-xs text-gray-500">(Paket Hemat)</span>
+                                    </div>
+                                    <div class="text-xs text-blue-600">
+                                        <?= $menu['promo_title'] ?>
+                                    </div>
                                 </div>
                             <?php else: ?>
                                 <span class="text-lg font-bold text-gray-800">Rp <?= number_format($menu['harga'], 0, ',', '.'); ?></span>
@@ -298,8 +359,11 @@ $menus = $conn->query($menu_query);
                             <input type="hidden" name="id_menu" value="<?= $menu['id_menu'] ?>">
                             <input type="hidden" name="nama_menu" value="<?= $menu['nama_menu']; ?>">
                             <input type="hidden" name="harga" value="<?= $menu['harga']; ?>">
-                            <input type="hidden" name="harga_promo" value="<?= $menu['harga_promo'] ?? ''; ?>">
+                            <input type="hidden" name="harga_promo" value="<?= $harga_promo ?? $menu['harga']; ?>">
                             <input type="hidden" name="gambar" value="<?= $menu['gambar']; ?>">
+                            <input type="hidden" name="promo_id" value="<?= $menu['promo_id'] ?? ''; ?>">
+                            <input type="hidden" name="promo_type" value="<?= $menu['promo_type'] ?? ''; ?>">
+                            
                             <button type="submit" class="btn-tambah w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2.5 rounded-lg transition font-medium text-sm shadow-md hover:shadow-lg">
                                 + Tambah ke Keranjang
                             </button>
