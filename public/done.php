@@ -1,23 +1,45 @@
 <?php
 session_start();
+include '../config/db.php';
 
-// Simpen id_meja sebelum hapus session, dengan fallback
-$id_meja = isset($_SESSION['id_meja']) ? (int)$_SESSION['id_meja'] : 1; // Default ke 1 kalo gak ada
-
-// Log buat debug
-error_log("done.php - id_meja: " . $id_meja);
-
-// Clear all session data
-$_SESSION = [];
-session_destroy();
-
-// Pastiin id_meja valid
-if ($id_meja <= 0) {
-    $id_meja = 1; // Fallback ke meja 1 kalo invalid
+// Pastikan customer_id ada
+if (!isset($_SESSION['customer_id'])) {
+    header("Location: register.php?table=" . ($_SESSION['id_meja'] ?? ''));
+    exit;
 }
 
-// Redirect to register after 20 seconds
-header("Refresh: 20; url=register.php?table=$id_meja");
+$customer_id = $_SESSION['customer_id'];
+
+// Ambil id_meja dari session
+$id_meja = $_SESSION['id_meja'] ?? '';
+
+// Simpan pesanan
+if (isset($_SESSION['keranjang']) && !empty($_SESSION['keranjang'])) {
+    $total_harga = 0;
+    foreach ($_SESSION['keranjang'] as $item) {
+        $total_harga += $item['harga'] * $item['jumlah'];
+    }
+
+    // Insert ke tabel pesanan
+    $query = "INSERT INTO pesanan (customer_id, id_menu, nama_menu, jumlah, harga, tanggal_pesanan, status) VALUES (?, ?, ?, ?, ?, NOW(), 'Pending')";
+    $stmt = $conn->prepare($query);
+
+    foreach ($_SESSION['keranjang'] as $item) {
+        $stmt->bind_param("iisid", $customer_id, $item['id_menu'], $item['nama_menu'], $item['jumlah'], $item['harga']);
+        $stmt->execute();
+    }
+
+    // Kosongkan keranjang
+    unset($_SESSION['keranjang']);
+}
+
+// Bersihkan semua session yang relevan
+unset($_SESSION['customer_id']);
+unset($_SESSION['id_meja']);
+
+// Redirect ke register.php
+header("Location: register.php?table=" . urlencode($id_meja));
+exit;
 ?>
 
 <!DOCTYPE html>
