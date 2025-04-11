@@ -11,6 +11,12 @@ date_default_timezone_set('Asia/Jakarta');
 $error = '';
 $success = '';
 
+// Ambil semua menu untuk dropdown
+$menu_items = $conn->query("SELECT id_menu, nama_menu FROM menu");
+if (!$menu_items) {
+    $error = "Gagal mengambil data menu: " . $conn->error;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = $_POST['title'];
     $description = $_POST['description'];
@@ -18,8 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $promo_type = $_POST['promo_type'];
     $start_date = $_POST['start_date'];
     $end_date = $_POST['end_date'];
-    $menu_target = isset($_POST['menu_target']) ? json_encode($_POST['menu_target']) : null;
-    // Handle bundle 
+    // Untuk promo discount, menu_target sekarang single value, bukan array
+    $menu_target = ($promo_type === 'discount' && isset($_POST['menu_target'])) ? json_encode([$_POST['menu_target']]) : null;
+    // Handle bundle
     $bundle_price = $_POST['bundle_price'] ?? null;
     $bundle_items = isset($_POST['bundle_items']) ? json_encode($_POST['bundle_items']) : null;
     $bundle_discount_type = $_POST['bundle_discount_type'] ?? null;
@@ -37,6 +44,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // Berjalan jika tidak ada error
     if (empty($error)) {
+        // Sesuaikan menu_target dan bundle_items berdasarkan promo_type
+        if ($promo_type === 'discount') {
+            $bundle_items = null;
+            $bundle_discount_type = null;
+            $bundle_discount_value = null;
+        } else if ($promo_type === 'bundle') {
+            $menu_target = null;
+            $discount = 0; // Reset discount kalo bundle
+        }
         // Handle image upload
         if ($_FILES['image']['name']) {
             $image = $_FILES['image']['name'];
@@ -53,7 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $image = "default.png";
         }
         
-        
         if (empty($error)) {
             $query = $conn->prepare("INSERT INTO promos 
                 (title, description, start_date, end_date, discount, promo_type, 
@@ -63,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $query->bind_param("ssssississss", 
                 $title, $description, $start_date, $end_date, $discount, $promo_type,
                 $menu_target, $bundle_price, $image, $bundle_items, $bundle_discount_type, $bundle_discount_value);
-
+    
             if ($query->execute()) {
                 $success = 'Promo berhasil ditambahkan!';
             } else {
@@ -196,12 +211,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="mb-4" id="menu-target-field" style="display: none;">
                         <label class="block text-gray-700 font-medium mb-2">Menu yang Di-diskon <span class="text-red-500">*</span></label>
-                        <select name="menu_target[]" multiple="multiple" class="menu-select w-full px-4 py-2 border rounded-lg">
-                            <?php foreach($menu_items as $item): ?>
-                                <option value="<?= $item['id_menu'] ?>"><?= $item['nama_menu'] ?></option>
-                            <?php endforeach; ?>
+                        <select name="menu_target" class="menu-select w-full px-4 py-2 border rounded-lg">
+                            <option value="">Pilih Menu</option>
+                            <?php while ($item = $menu_items->fetch_assoc()): ?>
+                                <option value="<?= $item['id_menu'] ?>"><?= htmlspecialchars($item['nama_menu']) ?></option>
+                            <?php endwhile; $menu_items->data_seek(0); ?>
                         </select>
-                        <p class="text-sm text-gray-500 mt-1">Pilih menu yang akan mendapatkan diskon</p>
+                        <p class="text-sm text-gray-500 mt-1">Pilih satu menu yang akan mendapatkan diskon</p>
                     </div>
                 </div>
 
@@ -210,10 +226,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div>
                         <label class="block text-gray-700 font-medium">Item Bundle <span class="text-red-500">*</span></label>
                         <select name="bundle_items[]" multiple class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-300 focus:border-orange-300">
-                            <?php
-                            $menu_items = $conn->query("SELECT id_menu, nama_menu FROM menu");
-                            while ($item = $menu_items->fetch_assoc()): ?>
-                                <option value="<?= $item['id_menu'] ?>"><?= $item['nama_menu'] ?></option>
+                            <?php while ($item = $menu_items->fetch_assoc()): ?>
+                                <option value="<?= $item['id_menu'] ?>"><?= htmlspecialchars($item['nama_menu']) ?></option>
                             <?php endwhile; ?>
                         </select>
                         <p class="text-sm text-gray-500">Pilih beberapa item (gunakan Ctrl/Cmd + klik untuk memilih multiple)</p>
@@ -287,7 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (promoTypeSelect.value === 'bundle') {
                     bundleFields.style.display = 'block';
                     regularDiscountField.style.display = 'none';
-                    
+                    menuTargetField.style.display = 'none';
                     // Inisialisasi Select2 hanya sekali
                     if (!select2Initialized && $('select[name="bundle_items[]"]').length) {
                         $('select[name="bundle_items[]"]').select2({
@@ -300,10 +314,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else if (promoTypeSelect.value === 'discount') {
                     bundleFields.style.display = 'none';
                     regularDiscountField.style.display = 'block';
+                    menuTargetField.style.display = 'block';
                 } else {
                     // Default state (belum memilih jenis promo)
                     bundleFields.style.display = 'none';
                     regularDiscountField.style.display = 'none';
+                    menuTargetField.style.display = 'none'; // Sembunyiin kalo belum pilih
                 }
             }
 
@@ -385,13 +401,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         errorMessages.push('Diskon harus antara 0-100%');
                         isValid = false;
                     }
-                    const selectedMenus = $('.menu-select').val();
-                    if (!selectedMenus || selectedMenus.length === 0) {
-                        errorMessages.push('Pilih minimal 1 menu untuk diskon');
+                    const selectedMenu = document.querySelector('select[name="menu_target"]').value;
+                    if (!selectedMenu) {
+                        errorMessages.push('Pilih satu menu untuk diskon');
                         isValid = false;
                     }
-                } 
-                else if (promoTypeSelect.value === 'bundle') {
+                } else if (promoTypeSelect.value === 'bundle') {
                     // Validasi bundle items
                     const bundleItems = document.querySelector('select[name="bundle_items[]"]');
                     if (!bundleItems || bundleItems.selectedOptions.length < 2) {
@@ -513,16 +528,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Inisialisasi Select2 untuk menu target
                 $('.menu-select').select2({
                     placeholder: "Pilih menu target",
-                    width: '100%',
-                    closeOnSelect: false
+                    width: '100%'
                 });
             }
 
-            togglePromoFields();    
             // Jalankan inisialisasi
             initEventListeners();
         });
     </script>
 </body>
-
 </html>
