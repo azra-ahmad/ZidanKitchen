@@ -1,6 +1,7 @@
 <?php
 session_start();
 include '../config/db.php';
+include '../config/functions.php';
 
 // Validate session and cart
 if (!isset($_SESSION['customer_id']) || !isset($_SESSION['id_meja']) || empty($_SESSION['keranjang'])) {
@@ -12,86 +13,60 @@ $id_meja = $_SESSION['id_meja'];
 $customer_id = $_SESSION['customer_id'];
 $errors = [];
 
-// Get menu data with promotions
-$menu_query = "
-SELECT 
-    m.id_menu, 
-    m.nama_menu, 
-    m.harga AS harga_asli,
-    (
-        SELECT p.id 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND (
-                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
-                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
-            )
-        LIMIT 1
-    ) AS promo_id,
-    (
-        SELECT p.promo_type 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND (
-                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
-                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
-            )
-        LIMIT 1
-    ) AS promo_type,
-    (
-        SELECT p.discount 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND p.promo_type = 'discount'
-            AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')
-        LIMIT 1
-    ) AS discount,
-    (
-        SELECT p.bundle_price 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND p.promo_type = 'bundle'
-            AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$')
-        LIMIT 1
-    ) AS bundle_price,
-    (
-        SELECT p.title 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND (
-                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
-                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
-            )
-        LIMIT 1
-    ) AS promo_title
-FROM menu m
-WHERE m.id_menu IN (" . implode(',', array_column($_SESSION['keranjang'], 'id_menu')) . ")
-";
-
+// Ambil data menu
+$menu_ids = implode(',', array_column($_SESSION['keranjang'], 'id_menu'));
+$menu_query = "SELECT * FROM menu WHERE id_menu IN ($menu_ids)";
 $menu_result = $conn->query($menu_query);
 $menu_data = [];
-
 while ($row = $menu_result->fetch_assoc()) {
-    // Calculate promo price
-    if ($row['promo_type'] == 'discount') {
-        $row['harga_promo'] = $row['harga_asli'] * (1 - ($row['discount'] / 100));
-    } elseif ($row['promo_type'] == 'bundle') {
-        $row['harga_promo'] = $row['bundle_price'];
-    } else {
-        $row['harga_promo'] = $row['harga_asli'];
-    }
-    
     $menu_data[$row['id_menu']] = $row;
+}
+
+// Ambil promo aktif
+$promos = getActivePromos($conn);
+
+// Hitung total untuk display
+$total_display = 0;
+$cart_items = [];
+foreach ($_SESSION['keranjang'] as $item) {
+    if (isset($menu_data[$item['id_menu']])) {
+        $menu_item = $menu_data[$item['id_menu']];
+        $harga_promo = getItemPrice($item['id_menu'], $_SESSION['keranjang'], $menu_data, $promos);
+        $subtotal = $harga_promo * $item['jumlah'];
+        $total_display += $subtotal;
+
+        $promo_type = null;
+        $promo_title = null;
+        $discount = getMenuDiscount($item['id_menu'], $promos);
+        if ($discount > 0) {
+            $promo_type = 'discount';
+            foreach ($promos as $promo) {
+                if ($promo['promo_type'] === 'discount' && in_array($item['id_menu'], $promo['menu_target'])) {
+                    $promo_title = $promo['title'];
+                    break;
+                }
+            }
+        } else {
+            foreach ($promos as $promo) {
+                if (checkBundlePromo($_SESSION['keranjang'], $promo) && in_array($item['id_menu'], $promo['bundle_items'])) {
+                    $promo_type = 'bundle';
+                    $promo_title = $promo['title'];
+                    break;
+                }
+            }
+        }
+
+        $cart_items[] = [
+            'id_menu' => $item['id_menu'],
+            'nama_menu' => $menu_item['nama_menu'],
+            'harga_asli' => $menu_item['harga'],
+            'harga_promo' => $harga_promo,
+            'promo_type' => $promo_type,
+            'promo_title' => $promo_title,
+            'jumlah' => $item['jumlah'],
+            'subtotal' => $subtotal
+        ];
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_checkout'])) {
@@ -114,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_checkout'])) {
         // 2. Process each cart item
         foreach ($_SESSION['keranjang'] as $item) {
             $menu_item = $menu_data[$item['id_menu']];
-            $harga = $menu_item['harga_promo'];
+            $harga = getItemPrice($item['id_menu'], $_SESSION['keranjang'], $menu_data, $promos);
             $jumlah = $item['jumlah'];
             $subtotal = $harga * $jumlah;
             $total_harga += $subtotal;
@@ -126,8 +101,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_checkout'])) {
                 VALUES (?, ?, ?, ?, ?, ?)
             ");
             $nama_menu = $menu_item['nama_menu'];
-            if ($menu_item['promo_type']) {
-                $nama_menu .= " ({$menu_item['promo_title']})";
+            $promo_type = null;
+            $promo_title = null;
+            $discount = getMenuDiscount($item['id_menu'], $promos);
+            if ($discount > 0) {
+                $promo_type = 'discount';
+                foreach ($promos as $promo) {
+                    if ($promo['promo_type'] === 'discount' && in_array($item['id_menu'], $promo['menu_target'])) {
+                        $promo_title = $promo['title'];
+                        break;
+                    }
+                }
+            } else {
+                foreach ($promos as $promo) {
+                    if (checkBundlePromo($_SESSION['keranjang'], $promo) && in_array($item['id_menu'], $promo['bundle_items'])) {
+                        $promo_type = 'bundle';
+                        $promo_title = $promo['title'];
+                        break;
+                    }
+                }
+            }
+            if ($promo_type) {
+                $nama_menu .= " ($promo_title)";
             }
             
             $stmt_item->bind_param(
@@ -162,28 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_checkout'])) {
     }
 }
 
-// Calculate total for display
-$total_display = 0;
-$cart_items = [];
-foreach ($_SESSION['keranjang'] as $item) {
-    if (isset($menu_data[$item['id_menu']])) {
-        $menu_item = $menu_data[$item['id_menu']];
-        $subtotal = $menu_item['harga_promo'] * $item['jumlah'];
-        $total_display += $subtotal;
-        
-        $cart_items[] = [
-            'id_menu' => $item['id_menu'],
-            'nama_menu' => $menu_item['nama_menu'],
-            'harga_asli' => $menu_item['harga_asli'],
-            'harga_promo' => $menu_item['harga_promo'],
-            'promo_type' => $menu_item['promo_type'],
-            'promo_title' => $menu_item['promo_title'],
-            'jumlah' => $item['jumlah'],
-            'subtotal' => $subtotal
-        ];
-    }
-}
+// Simpan total ke session
+$_SESSION['total_harga'] = $total_display;
 ?>
+
 
 <!DOCTYPE html>
 <html lang="id">
