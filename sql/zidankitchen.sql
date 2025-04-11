@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Apr 11, 2025 at 02:38 PM
+-- Generation Time: Apr 11, 2025 at 07:30 PM
 -- Server version: 8.0.30
 -- PHP Version: 8.1.10
 
@@ -83,7 +83,13 @@ INSERT INTO `customers` (`id`, `name`, `phone`, `table_id`, `created_at`) VALUES
 (20, 'Chris Evan', '0912834124', 2, '2025-04-11 12:30:40'),
 (21, 'Mulyono Doang', '087654321', 2, '2025-04-11 12:46:31'),
 (22, 'Christ', '087654321', 2, '2025-04-11 12:56:56'),
-(23, 'Evan', '313546', 3, '2025-04-11 13:06:16');
+(23, 'Evan', '313546', 3, '2025-04-11 13:06:16'),
+(24, 'Untukmu', '1298124', 3, '2025-04-11 15:20:50'),
+(25, 'Kipli', '1231240', 2, '2025-04-11 17:04:17'),
+(26, 'tastos', '563521', 2, '2025-04-11 18:39:03'),
+(27, 'TasTOS', '123534', 3, '2025-04-11 18:41:05'),
+(28, 'twes', '1232123', 3, '2025-04-11 19:13:05'),
+(29, 'tes lgi', '512343', 3, '2025-04-11 19:16:24');
 
 -- --------------------------------------------------------
 
@@ -201,7 +207,11 @@ INSERT INTO `orders` (`id`, `id_meja`, `customer_id`, `total_harga`, `metode_pem
 (44, 2, 21, '500000.00', NULL, 'done', 'dd2a5e18-05cb-42c9-b0b3-63a9c52aee8e', 'ZK-44-1744375628', '2025-04-11 12:47:08'),
 (45, 2, 22, '160000.00', NULL, 'pending', '8460551f-459f-49c4-9fcc-9c09807d24a8', 'ZK-45-1744376234', '2025-04-11 12:57:14'),
 (46, 2, 22, '160000.00', NULL, 'done', '0b58ccb4-e9e7-4418-9733-9593b80c73ba', 'ZK-46-1744376275', '2025-04-11 12:57:54'),
-(47, 3, 23, '150000.00', NULL, 'done', 'f7f0afd2-6afd-4f84-8a8e-5f50ae40d836', 'ZK-47-1744376812', '2025-04-11 13:06:51');
+(47, 3, 23, '150000.00', NULL, 'done', 'f7f0afd2-6afd-4f84-8a8e-5f50ae40d836', 'ZK-47-1744376812', '2025-04-11 13:06:51'),
+(48, 3, 24, '50000.00', NULL, 'done', '5ae14ba5-6ac7-47d4-8b65-1ab2065e558f', 'ZK-48-1744385496', '2025-04-11 15:31:01'),
+(49, 2, 25, '124500.00', NULL, 'done', '83343a2d-9b9e-4eb1-919b-7d0942380ce2', 'ZK-49-1744398190', '2025-04-11 19:03:10'),
+(50, 3, 28, '229500.00', NULL, 'done', 'ff128ad9-5163-4475-aadb-aacc83012475', 'ZK-50-1744398822', '2025-04-11 19:13:41'),
+(51, 3, 29, '160000.00', NULL, 'done', '0750db10-45c8-4d3e-a9cb-2a46cd239526', 'ZK-51-1744399006', '2025-04-11 19:16:46');
 
 -- --------------------------------------------------------
 
@@ -305,7 +315,17 @@ INSERT INTO `order_items` (`id`, `order_id`, `id_menu`, `nama_menu`, `jumlah`, `
 (81, 45, 2, 'Birthday Cake', 1, '150000.00', '150000.00'),
 (82, 46, 3, 'Coca Cola', 1, '10000.00', '10000.00'),
 (83, 46, 2, 'Birthday Cake', 1, '150000.00', '150000.00'),
-(84, 47, 4, 'Gâteau Basque', 1, '150000.00', '150000.00');
+(84, 47, 4, 'Gâteau Basque', 1, '150000.00', '150000.00'),
+(85, 48, 1, 'Sushi asli Jepun🍣', 1, '50000.00', '50000.00'),
+(86, 49, 4, 'Gâteau Basque (Paket Makan Malam )', 1, '105000.00', '105000.00'),
+(87, 49, 1, 'Sushi asli Jepun🍣 (Diskon Sushi 75%)', 1, '12500.00', '12500.00'),
+(88, 49, 3, 'Coca Cola (Paket Makan Malam )', 1, '7000.00', '7000.00'),
+(89, 50, 2, 'Birthday Cake', 1, '105000.00', '105000.00'),
+(90, 50, 3, 'Coca Cola (Paket Makan Malam )', 1, '7000.00', '7000.00'),
+(91, 50, 4, 'Gâteau Basque (Paket Makan Malam )', 1, '105000.00', '105000.00'),
+(92, 50, 1, 'Sushi asli Jepun🍣 (Diskon Sushi 75%)', 1, '12500.00', '12500.00'),
+(93, 51, 2, 'Birthday Cake', 1, '150000.00', '150000.00'),
+(94, 51, 3, 'Coca Cola', 1, '10000.00', '10000.00');
 
 -- --------------------------------------------------------
 
@@ -338,9 +358,8 @@ CREATE TABLE `promos` (
 INSERT INTO `promos` (`id`, `title`, `description`, `discount`, `promo_type`, `bundle_price`, `bundle_items`, `bundle_discount_type`, `bundle_discount_value`, `image`, `created_at`, `updated_at`, `start_date`, `end_date`, `menu_target`) VALUES
 (3, 'Ramadhan Kareem! 🕌', 'Nikmati promo bukber hingga 70% hanya di ZidanKitchen! 🤑😍', 30, 'discount', 0, NULL, 'percentage', NULL, 'promoBukber.jpeg', '2025-04-05 15:02:49', '2025-04-05 15:03:31', '2025-04-04', '2025-05-09', NULL),
 (4, 'Eid Mubarak 2025!', 'blablabla', 50, 'discount', 0, NULL, 'percentage', NULL, 'promoEid.png', '2025-04-05 15:07:32', NULL, '2025-03-31', '2025-04-07', NULL),
-(10, 'tes bundle', 'tesbundle', 0, 'bundle', NULL, '[\"1\", \"2\", \"3\"]', 'percentage', '20.00', 'default.png', '2025-04-10 00:22:42', NULL, '2025-04-10', '2025-04-30', NULL),
-(11, 'tes diskon', 'tesdiskon', 0, 'discount', NULL, NULL, 'percentage', NULL, 'default.png', '2025-04-10 06:26:50', NULL, '2025-04-10', '2025-04-30', NULL),
-(12, 'tes bundle lagi', 'tes', 0, 'bundle', NULL, '[\"3\", \"4\"]', 'percentage', '30.00', 'default.png', '2025-04-10 06:32:26', NULL, '2025-04-10', '2025-04-30', NULL);
+(14, 'Diskon Sushi 75%', '50? 60? 70? 75‼️', 75, 'discount', NULL, NULL, NULL, NULL, 'promoSushi.jpg', '2025-04-11 23:56:28', NULL, '2025-04-11', '2025-04-30', '[\"1\"]'),
+(15, 'Paket Makan Malam ', 'Dinner with dinna n nigg', 0, 'bundle', NULL, '[\"3\", \"4\"]', 'percentage', '30.00', 'promoBundleDinner.jpeg', '2025-04-12 00:01:53', NULL, '2025-04-11', '2025-04-30', NULL);
 
 --
 -- Indexes for dumped tables
@@ -407,7 +426,7 @@ ALTER TABLE `admin`
 -- AUTO_INCREMENT for table `customers`
 --
 ALTER TABLE `customers`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT for table `meja`
@@ -425,19 +444,19 @@ ALTER TABLE `menu`
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=48;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=95;
 
 --
 -- AUTO_INCREMENT for table `promos`
 --
 ALTER TABLE `promos`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- Constraints for dumped tables
