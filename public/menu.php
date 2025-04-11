@@ -10,7 +10,7 @@ if (isset($_SESSION['cart']) && is_array($_SESSION['cart'])) {
 
 
 if (!isset($_SESSION['id_meja']) || !isset($_SESSION['customer_id'])) {
-    header("Location: order.php?table=" . $_SESSION['id_meja'] ?? '');
+    header("Location: register.php?table=" . $_SESSION['id_meja'] ?? '');
     exit;
 }
 
