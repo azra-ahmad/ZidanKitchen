@@ -1,61 +1,89 @@
 <?php
-    session_start();
-    if (!isset($_SESSION['admin_logged_in'])) {
-        header("Location: login.php");
-        exit;
+session_start();
+if (!isset($_SESSION['admin_logged_in'])) {
+    header("Location: login.php");
+    exit;
+}
+
+include '../config/db.php';
+date_default_timezone_set('Asia/Jakarta');
+
+if (!isset($conn)) {
+    die("Error: Koneksi database tidak tersedia.");
+}
+
+// Pagination settings
+$perPage = 10;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $perPage;
+
+// Filter settings
+$filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
+$today = date('Y-m-d');
+
+// Base query
+$query = "SELECT * FROM promos WHERE 1=1";
+
+// Apply filters
+switch ($filter) {
+    case 'active':
+        $query .= " AND start_date <= '$today' AND end_date >= '$today'";
+        break;
+    case 'upcoming':
+        $query .= " AND start_date > '$today'";
+        break;
+    case 'expired':
+        $query .= " AND end_date < '$today'";
+        break;
+    default:
+        // 'all' - no additional filter
+        break;
+}
+
+// Get total count for pagination
+$countQuery = str_replace('SELECT *', 'SELECT COUNT(*) as total', $query);
+$countResult = $conn->query($countQuery);
+$totalPromos = $countResult->fetch_assoc()['total'];
+$totalPages = ceil($totalPromos / $perPage);
+
+// Add pagination and sorting to main query
+$query .= " ORDER BY start_date DESC LIMIT $offset, $perPage";
+$result = $conn->query($query);
+
+// Function to build URL with params
+function buildUrl($params) {
+    $currentParams = $_GET;
+    $mergedParams = array_merge($currentParams, $params);
+    return '?' . http_build_query($mergedParams);
+}
+
+// Function to get menu details
+function getMenuDetails($conn, $menu_ids) {
+    if (empty($menu_ids)) {
+        return ['names' => 'Semua Menu', 'categories' => 'Semua Kategori'];
     }
 
-    include '../config/db.php';
-    date_default_timezone_set('Asia/Jakarta');
-
-    if (!isset($conn)) {
-        die("Error: Koneksi database tidak tersedia.");
+    $menu_ids = json_decode($menu_ids, true);
+    if (!is_array($menu_ids) || empty($menu_ids)) {
+        return ['names' => 'Semua Menu', 'categories' => 'Semua Kategori'];
     }
 
-    // Pagination settings
-    $perPage = 10;
-    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    $offset = ($page - 1) * $perPage;
+    $menu_ids_str = implode(',', array_map('intval', $menu_ids));
+    $menu_query = "SELECT id_menu, nama_menu, kategori_menu FROM menu WHERE id_menu IN ($menu_ids_str)";
+    $menu_result = $conn->query($menu_query);
 
-    // Filter settings
-    $filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
-    $today = date('Y-m-d');
-
-    // Base query
-    $query = "SELECT * FROM promos WHERE 1=1";
-
-    // Apply filters
-    switch ($filter) {
-        case 'active':
-            $query .= " AND start_date <= '$today' AND end_date >= '$today'";
-            break;
-        case 'upcoming':
-            $query .= " AND start_date > '$today'";
-            break;
-        case 'expired':
-            $query .= " AND end_date < '$today'";
-            break;
-        default:
-            // 'all' - no additional filter
-            break;
+    $names = [];
+    $categories = [];
+    while ($menu = $menu_result->fetch_assoc()) {
+        $names[] = htmlspecialchars($menu['nama_menu']);
+        $categories[] = htmlspecialchars(ucfirst($menu['kategori_menu']));
     }
 
-    // Get total count for pagination
-    $countQuery = str_replace('SELECT *', 'SELECT COUNT(*) as total', $query);
-    $countResult = $conn->query($countQuery);
-    $totalPromos = $countResult->fetch_assoc()['total'];
-    $totalPages = ceil($totalPromos / $perPage);
-
-    // Add pagination and sorting to main query
-    $query .= " ORDER BY start_date DESC LIMIT $offset, $perPage";
-    $result = $conn->query($query);
-
-    // Function to build URL with params
-    function buildUrl($params) {
-        $currentParams = $_GET;
-        $mergedParams = array_merge($currentParams, $params);
-        return '?' . http_build_query($mergedParams);
-    }
+    return [
+        'names' => implode(', ', $names),
+        'categories' => implode(', ', array_unique($categories))
+    ];
+}
 ?>
 
 <!DOCTYPE html>
@@ -144,73 +172,84 @@
                             <th class="px-6 py-4 text-left">Periode</th>
                             <th class="px-6 py-4 text-left">Jenis</th>
                             <th class="px-6 py-4 text-center">Diskon</th>
-                            <th class="px-6 py-4 text-left">Target</th>
+                            <th class="px-6 py-4 text-left">Target Menu</th>
+                            <th class="px-6 py-4 text-left">Kategori</th>
                             <th class="px-6 py-4 text-center">Gambar</th>
                             <th class="px-6 py-4 text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        <?php while ($row = $result->fetch_assoc()) { 
-                            $category = $row['category_target'] ?? '';
-                            $badgeColor = '';
-                            
-                            // Determine badge color based on promo type
-                            switch($row['promo_type']) {
-                                case 'discount': $badgeColor = 'bg-blue-100 text-blue-800'; break;
-                                case 'buy2get1': $badgeColor = 'bg-purple-100 text-purple-800'; break;
-                                case 'bundle': $badgeColor = 'bg-green-100 text-green-800'; break;
-                                default: $badgeColor = 'bg-gray-100 text-gray-800';
-                            }
-                        ?>
-                        <tr class="hover:bg-orange-50 transition-colors">
-                            <td class="px-6 py-4">
-                                <div class="font-medium text-gray-800"><?= htmlspecialchars($row['title']) ?></div>
-                                <div class="text-sm text-gray-500 line-clamp-2"><?= htmlspecialchars($row['description']) ?></div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium"><?= date('d M Y', strtotime($row['start_date'])) ?></div>
-                                <div class="text-xs text-gray-500">s/d <?= date('d M Y', strtotime($row['end_date'])) ?></div>
-                            </td>
-                            <td class="px-6 py-4">
-                                <span class="px-3 py-1 rounded-full text-xs font-medium <?= $badgeColor ?>">
-                                    <?= htmlspecialchars(ucfirst($row['promo_type'])) ?>
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 text-center">
-                                <?php if ($row['discount'] > 0): ?>
+                        <?php if ($result->num_rows === 0): ?>
+                            <tr>
+                                <td colspan="8" class="px-6 py-4 text-center text-gray-500">
+                                    Tidak ada promo yang ditemukan.
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php while ($row = $result->fetch_assoc()): 
+                                // Determine badge color based on promo type
+                                $badgeColor = $row['promo_type'] === 'discount' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
+
+                                // Get menu details for target
+                                $menu_details = getMenuDetails($conn, $row['menu_target']);
+                                $menu_names = $menu_details['names'];
+                                $menu_categories = $menu_details['categories'];
+
+                                // Determine discount display
+                                $discount_display = '-';
+                                if ($row['promo_type'] === 'discount' && $row['discount'] > 0) {
+                                    $discount_display = $row['discount'] . '%';
+                                } elseif ($row['promo_type'] === 'bundle' && $row['bundle_discount_value'] > 0) {
+                                    $discount_display = $row['bundle_discount_type'] === 'percentage' 
+                                        ? $row['bundle_discount_value'] . '%' 
+                                        : 'Rp ' . number_format($row['bundle_discount_value'], 0, ',', '.');
+                                }
+                            ?>
+                            <tr class="hover:bg-orange-50 transition-colors">
+                                <td class="px-6 py-4">
+                                    <div class="font-medium text-gray-800"><?= htmlspecialchars($row['title']) ?></div>
+                                    <div class="text-sm text-gray-500 line-clamp-2"><?= htmlspecialchars($row['description']) ?></div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium"><?= date('d M Y', strtotime($row['start_date'])) ?></div>
+                                    <div class="text-xs text-gray-500">s/d <?= date('d M Y', strtotime($row['end_date'])) ?></div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="px-3 py-1 rounded-full text-xs font-medium <?= $badgeColor ?>">
+                                        <?= htmlspecialchars(ucfirst($row['promo_type'])) ?>
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-center">
                                     <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
-                                        <?= htmlspecialchars($row['discount']) ?>%
+                                        <?= $discount_display ?>
                                     </span>
-                                <?php else: ?>
-                                    <span class="text-gray-400">-</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="px-6 py-4">
-                                <?php if ($category === 'Semua Kategori'): ?>
-                                    <span class="text-gray-500"><?= $category ?></span>
-                                <?php else: ?>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="text-gray-500"><?= $menu_names ?></span>
+                                </td>
+                                <td class="px-6 py-4">
                                     <span class="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
-                                        <?= htmlspecialchars(ucfirst($category)) ?>
+                                        <?= $menu_categories ?>
                                     </span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="px-6 py-4 text-center">
-                                <div class="flex justify-center">
-                                    <img src="../assets/images/<?= htmlspecialchars($row['image']) ?>" alt="<?= htmlspecialchars($row['title']) ?>" class="w-12 h-12 object-cover rounded-lg shadow-sm">
-                                </div>
-                            </td>
-                            <td class="px-6 py-4 text-center">
-                                <div class="flex justify-center space-x-2">
-                                    <a href="edit_promo.php?id=<?= $row['id'] ?>" class="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition-colors" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <a href="delete_promo.php?id=<?= $row['id'] ?>" class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors" title="Hapus" onclick="return confirm('Hapus promo ini?')">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php } ?>
+                                </td>
+                                <td class="px-6 py-4 text-center">
+                                    <div class="flex justify-center">
+                                        <img src="../assets/images/<?= htmlspecialchars($row['image']) ?>" alt="<?= htmlspecialchars($row['title']) ?>" class="w-12 h-12 object-cover rounded-lg shadow-sm">
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-center">
+                                    <div class="flex justify-center space-x-2">
+                                        <a href="edit_promo.php?id=<?= $row['id'] ?>" class="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition-colors" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="delete_promo.php?id=<?= $row['id'] ?>" class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors" title="Hapus" onclick="return confirm('Hapus promo ini?')">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
