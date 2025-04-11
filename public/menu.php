@@ -1,11 +1,12 @@
 <?php
-include '../config/db.php';
 session_start();
+include '../config/db.php';
+include '../config/functions.php';
 
 // Hitung jumlah item di keranjang
 $cart_count = 0;
-if (isset($_SESSION['cart']) && is_array($_SESSION['cart'])) {
-    $cart_count = count($_SESSION['cart']);
+if (isset($_SESSION['keranjang']) && is_array($_SESSION['keranjang'])) {
+    $cart_count = array_sum(array_column($_SESSION['keranjang'], 'jumlah'));
 }
 
 if (!isset($_SESSION['id_meja']) || !isset($_SESSION['customer_id'])) {
@@ -20,69 +21,85 @@ while ($row = $kategori_result->fetch_assoc()) {
     $kategori_list[] = $row['kategori_menu'];
 }
 
-$menu_query = "
-SELECT 
-    m.*,
-    (
-        SELECT p.id 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND (
-                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
-                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
-            )
-        LIMIT 1
-    ) AS promo_id,
-    (
-        SELECT p.promo_type 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND (
-                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
-                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
-            )
-        LIMIT 1
-    ) AS promo_type,
-    (
-        SELECT p.discount 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND p.promo_type = 'discount'
-            AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')
-        LIMIT 1
-    ) AS discount,
-    (
-        SELECT p.bundle_price 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND p.promo_type = 'bundle'
-            AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$')
-        LIMIT 1
-    ) AS bundle_price,
-    (
-        SELECT p.title 
-        FROM promos p 
-        WHERE 
-            p.start_date <= CURDATE() 
-            AND p.end_date >= CURDATE()
-            AND (
-                (p.promo_type = 'discount' AND JSON_CONTAINS(p.menu_target, CAST(m.id_menu AS JSON), '$')) OR
-                (p.promo_type = 'bundle' AND JSON_CONTAINS(p.bundle_items, CAST(m.id_menu AS JSON), '$'))
-            )
-        LIMIT 1
-    ) AS promo_title
-FROM menu m
-ORDER BY m.nama_menu
-";
-$menus = $conn->query($menu_query);
+// Ambil semua menu
+$menu_query = "SELECT * FROM menu ORDER BY nama_menu";
+$menu_result = $conn->query($menu_query);
+$menu_data = [];
+while ($row = $menu_result->fetch_assoc()) {
+    $menu_data[$row['id_menu']] = $row;
+}
+
+// Ambil promo aktif
+$promos = getActivePromos($conn);
+
+// Data untuk pop-up promo
+$active_promos = [];
+foreach ($promos as $promo) {
+    $promo['menu_names'] = [];
+    if ($promo['promo_type'] === 'discount' && !empty($promo['menu_target'])) {
+        foreach ($promo['menu_target'] as $menu_id) {
+            if (isset($menu_data[$menu_id])) {
+                $promo['menu_names'][] = $menu_data[$menu_id]['nama_menu'];
+            }
+        }
+    } elseif ($promo['promo_type'] === 'bundle' && !empty($promo['bundle_items'])) {
+        foreach ($promo['bundle_items'] as $menu_id) {
+            if (isset($menu_data[$menu_id])) {
+                $promo['menu_names'][] = $menu_data[$menu_id]['nama_menu'];
+            }
+        }
+    }
+    $active_promos[] = $promo;
+}
+
+// Hitung harga promo untuk setiap menu
+$menus = [];
+foreach ($menu_data as $menu) {
+    $menu['harga_promo'] = getItemPrice($menu['id_menu'], $_SESSION['keranjang'] ?? [], $menu_data, $promos);
+    $menu['discount'] = getMenuDiscount($menu['id_menu'], $promos);
+    $menu['promo_type'] = null;
+    $menu['promo_title'] = null;
+    $menu['promo_message'] = null;
+
+    // Cek promo discount
+    if ($menu['discount'] > 0) {
+        $menu['promo_type'] = 'discount';
+        foreach ($promos as $promo) {
+            if ($promo['promo_type'] === 'discount' && in_array($menu['id_menu'], $promo['menu_target'])) {
+                $menu['promo_title'] = $promo['title'];
+                break;
+            }
+        }
+    }
+
+    // Cek promo bundle (tampilkan meskipun belum lengkap)
+    foreach ($promos as $promo) {
+        if ($promo['promo_type'] === 'bundle' && in_array($menu['id_menu'], $promo['bundle_items'])) {
+            $menu['promo_type'] = checkBundlePromo($_SESSION['keranjang'] ?? [], $promo) ? 'bundle' : 'bundle_incomplete';
+            $menu['promo_title'] = $promo['title'];
+            $menu['bundle_discount'] = $promo['bundle_discount_value'];
+            // Cek item yang kurang untuk bundle
+            $missing_items = [];
+            foreach ($promo['bundle_items'] as $bundle_item_id) {
+                $found = false;
+                foreach ($_SESSION['keranjang'] ?? [] as $cart_item) {
+                    if ($cart_item['id_menu'] == $bundle_item_id && $cart_item['jumlah'] > 0) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found && $bundle_item_id != $menu['id_menu']) {
+                    $missing_items[] = $menu_data[$bundle_item_id]['nama_menu'];
+                }
+            }
+            if (!empty($missing_items)) {
+                $menu['promo_message'] = "Tambah " . implode(" & ", $missing_items) . " untuk diskon " . number_format($promo['bundle_discount_value'], 0) . "%!";
+            }
+            break;
+        }
+    }
+    $menus[] = $menu;
+}
 ?>
 
 <!DOCTYPE html>
@@ -95,117 +112,7 @@ $menus = $conn->query($menu_query);
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module" src="https://unpkg.com/@google/model-viewer"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(180deg, #f0f4ff 0%, #ffffff 100%);
-            overscroll-behavior: none;
-        }
-
-        /* Smooth Animations */
-        @keyframes fadeInUp {
-            0% {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-
-            100% {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(1);
-            }
-
-            50% {
-                transform: scale(1.05);
-            }
-
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        .animate-in {
-            animation: fadeInUp 0.6s ease-out forwards;
-        }
-
-        .card-hover:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
-        }
-
-        /* Glassmorphism Effect */
-        .glass {
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-
-        /* Custom Scrollbar */
-        .category-scroll::-webkit-scrollbar {
-            height: 6px;
-        }
-
-        .category-scroll::-webkit-scrollbar-track {
-            background: #e5e7eb;
-            border-radius: 3px;
-        }
-
-        .category-scroll::-webkit-scrollbar-thumb {
-            background: #3b82f6;
-            border-radius: 3px;
-        }
-
-        .category-scroll {
-            scroll-behavior: smooth;
-        }
-
-        /* Toast Notification */
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: linear-gradient(135deg, #4CAF50, #2e7d32);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 12px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-            z-index: 9999;
-            opacity: 0;
-            transform: translateX(20px);
-            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-
-        .toast.show {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        /* Neon Glow Effect */
-        .neon-button {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .neon-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-            transition: 0.5s;
-        }
-
-        .neon-button:hover::before {
-            left: 100%;
-        }
-    </style>
+    <link rel="stylesheet" href="../assets/css/menu.css">
 </head>
 
 <body class="min-h-screen m-0 p-0">
@@ -224,30 +131,53 @@ $menus = $conn->query($menu_query);
         }
     </script>
 
+    <!-- Promo Pop-Up -->
+    <div id="promoModal" class="promo-modal">
+        <div class="promo-modal-content">
+            <span class="close-btn" onclick="closePromoModal()">×</span>
+            <?php foreach ($active_promos as $promo): ?>
+                <div class="promo-item mb-4">
+                    <img src="../assets/images/<?php echo htmlspecialchars($promo['image']); ?>" alt="<?php echo htmlspecialchars($promo['title']); ?>">
+                    <h2 class="text-2xl font-bold text-gray-800"><?php echo htmlspecialchars($promo['title']); ?></h2>
+                    <p class="text-gray-600">
+                        <?php if ($promo['promo_type'] === 'discount'): ?>
+                            Diskon <?php echo number_format($promo['discount'], 0); ?>% untuk <?php echo implode(', ', $promo['menu_names']); ?>!
+                        <?php else: ?>
+                            Diskon <?php echo number_format($promo['bundle_discount_value'], 0); ?>% untuk paket <?php echo implode(' + ', $promo['menu_names']); ?>!
+                        <?php endif; ?>
+                    </p>
+                </div>
+            <?php endforeach; ?>
+            <a href="promo.php" class="block bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition-all text-center">Lihat Semua Promo</a>
+        </div>
+    </div>
+
     <!-- Header -->
     <header class="sticky top-0 z-50 glass shadow-lg px-6 py-4">
         <div class="flex justify-between items-center max-w-7xl mx-auto">
             <div class="flex items-center space-x-3">
-                <img src="../assets/images/logo_biru.png" alt="Logo" class="w-16 h-16 object-contain transition-transform hover:scale-105">
+                <img src="../assets/images/logo_biru.png" alt="Logo" class="w-12 h-12 object-contain transition-transform hover:scale-105">
                 <h1 class="text-3xl font-bold text-gray-800">
                     Zidan<span class="text-blue-600">Kitchen</span>
                 </h1>
             </div>
-            <a href="keranjang.php" class="relative group">
-                <div class="p-3 rounded-full bg-white/50 hover:bg-white transition-all duration-300 shadow-md group-hover:shadow-lg">
-                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
-                    </svg>
-                    <?php if ($cart_count > 0): ?>
-                        <span class="cart-count absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse"><?php echo $cart_count; ?></span>
-                    <?php endif; ?>
-                </div>
-            </a>
+            <div class="flex items-center space-x-2">
+                <a href="keranjang.php" class="relative group">
+                    <div class="p-2 rounded-full bg-white/50 hover:bg-white transition-all duration-300 shadow-md group-hover:shadow-lg">
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
+                        </svg>
+                        <?php if ($cart_count > 0): ?>
+                            <span class="cart-count absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse"><?php echo $cart_count; ?></span>
+                        <?php endif; ?>
+                    </div>
+                </a>
+            </div>
         </div>
     </header>
 
     <!-- Category Filter -->
-    <div class="fixed top-25 z-40 glass w-full px-6 py-4 shadow-md">
+    <div class="fixed top-20 z-40 glass w-full px-6 py-4 shadow-md">
         <div class="category-scroll flex space-x-3 overflow-x-auto max-w-7xl mx-auto">
             <button class="px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-500 to-blue-700 text-white text-sm font-medium transition-all duration-300 hover:from-blue-600 hover:to-blue-800 shadow-md hover:shadow-lg whitespace-nowrap" data-filter="all">Semua Menu</button>
             <?php foreach ($kategori_list as $kategori): ?>
@@ -257,11 +187,11 @@ $menus = $conn->query($menu_query);
             <?php endforeach; ?>
         </div>
     </div>
+
     <!-- Menu -->
-    <main class="container mx-auto px-6 py-8 max-w-7xl">
+    <main class="container mx-auto px-6 py-8 max-w-7xl pt-24">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <?php $index = 0;
-            while ($menu = $menus->fetch_assoc()): ?>
+            <?php $index = 0; foreach ($menus as $menu): ?>
                 <div class="bg-white/80 rounded-2xl overflow-hidden shadow-lg card-hover animate-in menu-card" style="animation-delay: <?php echo ($index % 10) * 0.1; ?>s;" data-kategori="<?php echo htmlspecialchars($menu['kategori_menu']); ?>">
                     <div class="relative">
                         <div class="h-56 w-full overflow-hidden">
@@ -274,17 +204,24 @@ $menus = $conn->query($menu_query);
                         <?php endif; ?>
                         <?php if ($menu['promo_type'] == 'discount'): ?>
                             <div class="absolute top-4 left-4 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md">
-                                -<?php echo $menu['discount']; ?>%
+                                -<?php echo number_format($menu['discount'], 0); ?>%
                             </div>
                             <div class="absolute top-4 right-4 bg-white/90 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm">
-                                <?php echo htmlspecialchars($menu['promo_title']); ?>
+                                <?php echo htmlspecialchars($menu['promo_title'] ?? ''); ?>
                             </div>
                         <?php elseif ($menu['promo_type'] == 'bundle'): ?>
                             <div class="absolute top-4 left-4 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md">
-                                Paket Hemat
+                                -<?php echo number_format($menu['bundle_discount'], 0); ?>%
                             </div>
                             <div class="absolute top-4 right-4 bg-white/90 text-green-600 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm">
-                                <?php echo htmlspecialchars($menu['promo_title']); ?>
+                                Paket Hemat
+                            </div>
+                        <?php elseif ($menu['promo_type'] == 'bundle_incomplete'): ?>
+                            <div class="absolute top-4 left-4 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md">
+                                -<?php echo number_format($menu['bundle_discount'], 0); ?>%
+                            </div>
+                            <div class="absolute top-4 right-4 bg-white/90 text-yellow-600 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm">
+                                Promo Bundle
                             </div>
                         <?php endif; ?>
                     </div>
@@ -305,17 +242,26 @@ $menus = $conn->query($menu_query);
                                         <span class="text-sm line-through text-gray-400">Rp <?php echo number_format($menu['harga'], 0, ',', '.'); ?></span>
                                     </div>
                                     <div class="text-xs text-green-600 font-medium">
-                                        Hemat Rp <?php echo number_format($diskon_value, 0, ',', '.'); ?> (<?php echo $menu['discount']; ?>%)
+                                        Hemat Rp <?php echo number_format($diskon_value, 0, ',', '.'); ?> (<?php echo number_format($menu['discount'], 0); ?>%)
                                     </div>
                                 </div>
                             <?php elseif ($menu['promo_type'] == 'bundle'): ?>
                                 <div class="space-y-1">
                                     <div class="flex items-center space-x-2">
-                                        <span class="text-lg font-bold text-green-600">Rp <?php echo number_format($menu['bundle_price'], 0, ',', '.'); ?></span>
+                                        <span class="text-lg font-bold text-green-600">Rp <?php echo number_format($menu['harga_promo'], 0, ',', '.'); ?></span>
                                         <span class="text-xs text-gray-500">(Paket Hemat)</span>
                                     </div>
                                     <div class="text-xs text-blue-600 font-medium">
-                                        <?php echo htmlspecialchars($menu['promo_title']); ?>
+                                        <?php echo htmlspecialchars($menu['promo_title'] ?? ''); ?>
+                                    </div>
+                                </div>
+                            <?php elseif ($menu['promo_type'] == 'bundle_incomplete'): ?>
+                                <div class="space-y-1">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-lg font-bold text-gray-800">Rp <?php echo number_format($menu['harga'], 0, ',', '.'); ?></span>
+                                    </div>
+                                    <div class="text-xs text-yellow-600 font-medium">
+                                        <?php echo htmlspecialchars($menu['promo_message'] ?? ''); ?>
                                     </div>
                                 </div>
                             <?php else: ?>
@@ -326,9 +272,8 @@ $menus = $conn->query($menu_query);
                             <input type="hidden" name="id_menu" value="<?php echo $menu['id_menu']; ?>">
                             <input type="hidden" name="nama_menu" value="<?php echo htmlspecialchars($menu['nama_menu']); ?>">
                             <input type="hidden" name="harga" value="<?php echo $menu['harga']; ?>">
-                            <input type="hidden" name="harga_promo" value="<?php echo isset($harga_promo) ? $harga_promo : $menu['harga']; ?>">
+                            <input type="hidden" name="harga_promo" value="<?php echo isset($menu['harga_promo']) ? $menu['harga_promo'] : $menu['harga']; ?>">
                             <input type="hidden" name="gambar" value="<?php echo htmlspecialchars($menu['gambar']); ?>">
-                            <input type="hidden" name="promo_id" value="<?php echo $menu['promo_id'] ?? ''; ?>">
                             <input type="hidden" name="promo_type" value="<?php echo $menu['promo_type'] ?? ''; ?>">
                             <button type="submit" class="btn-tambah w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-medium text-sm transition-all duration-300 shadow-md hover:shadow-xl neon-button">
                                 + Tambah ke Keranjang
@@ -336,16 +281,21 @@ $menus = $conn->query($menu_query);
                         </form>
                     </div>
                 </div>
-            <?php $index++;
-            endwhile; ?>
+            <?php $index++; endforeach; ?>
         </div>
     </main>
 
     <!-- Bottom Navigation -->
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 py-2 px-4 shadow-lg">
         <div class="flex justify-around max-w-md mx-auto">
-            <a href="menu.php" class="flex flex-col items-center px-4 py-1 text-blue-600">
+            <a href="promo.php" class="flex flex-col items-center px-4 py-1 hover:text-blue-600">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="text-xs mt-1">Promo</span>
+            </a>
+            <a href="menu.php" class="flex flex-col items-center px-4 py-1 text-blue-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
                 </svg>
                 <span class="text-xs mt-1">Menu</span>
@@ -361,6 +311,38 @@ $menus = $conn->query($menu_query);
 
     <!-- JavaScript -->
     <script>
+        // Promo Pop-Up
+        document.addEventListener('DOMContentLoaded', function() {
+            const promoModal = document.getElementById('promoModal');
+            if (promoModal) {
+                setTimeout(() => {
+                    promoModal.style.display = 'block';
+                }, 1000);
+            }
+
+            // Close on click outside
+            promoModal.addEventListener('click', function(e) {
+                if (e.target === promoModal) {
+                    closePromoModal();
+                }
+            });
+
+            // Close on Esc key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closePromoModal();
+                }
+            });
+        });
+
+        function closePromoModal() {
+            const promoModal = document.getElementById('promoModal');
+            promoModal.classList.add('fade-out');
+            setTimeout(() => {
+                promoModal.style.display = 'none';
+            }, 300);
+        }
+
         // Cart Animation and Toast
         function animateCart() {
             const cartIcon = document.querySelector('.group');
