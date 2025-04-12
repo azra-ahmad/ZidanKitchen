@@ -2,93 +2,91 @@
 require_once '../vendor/autoload.php';
 include '../config/db.php';
 
-// Get raw POST data
-$raw_notification = file_get_contents('php://input');
+// Setup Midtrans Config
+\Midtrans\Config::$serverKey = 'SB-Mid-server-p_rr6ZhgUcuXXt7ZJaAJsSM2';
+\Midtrans\Config::$isProduction = false;
 
-// Log raw data
-file_put_contents('midtrans_notifications.log', 
-    date('Y-m-d H:i:s') . " - Raw: " . $raw_notification . "\n", 
-    FILE_APPEND
-);
+// Ambil data notifikasi dari Midtrans (via POST)
+$json = file_get_contents('php://input');
+$data = json_decode($json, true);
 
-try {
-    // Parse JSON manually
-    $notif = json_decode($raw_notification);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        throw new Exception("Failed to parse JSON: " . json_last_error_msg());
-    }
-
-    // Validate required fields
-    if (!isset($notif->order_id) || !isset($notif->transaction_status)) {
-        throw new Exception("Missing required fields in notification");
-    }
-
-    // Extract ZidanKitchen order ID from Midtrans order ID
-    $parts = explode('-', $notif->order_id);
-    if (count($parts) < 3 || $parts[0] !== 'ZK') {
-        throw new Exception("Invalid order ID format: {$notif->order_id}");
-    }
-
-    $order_id = (int)$parts[1];
-
-    // Verify the order exists
-    $stmt = $conn->prepare("SELECT id, midtrans_order_id FROM orders WHERE id = ?");
-    $stmt->bind_param("i", $order_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result->num_rows === 0) {
-        throw new Exception("Order not found: $order_id");
-    }
-
-    $order = $result->fetch_assoc();
-
-    // Verify the Midtrans order ID matches
-    if ($order['midtrans_order_id'] !== $notif->order_id) {
-        throw new Exception("Order ID mismatch: DB={$order['midtrans_order_id']}, Midtrans={$notif->order_id}");
-    }
-
-    // Map Midtrans status to internal status
-    $valid_statuses = ['pending', 'paid', 'failed', 'done'];
-    switch ($notif->transaction_status) {
-        case 'capture':
-        case 'settlement':
-            $status = 'paid';
-            break;
-        case 'pending':
-            $status = 'pending';
-            break;
-        case 'deny':
-        case 'cancel':
-        case 'expire':
-            $status = 'failed';
-            break;
-        default:
-            throw new Exception("Unknown transaction_status: {$notif->transaction_status}");
-    }
-
-    // Update order status
-    $update_stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
-    $update_stmt->bind_param("si", $status, $order_id);
-    if (!$update_stmt->execute()) {
-        throw new Exception("Failed to update order status: " . $conn->error);
-    }
-
-    // Log success
-    file_put_contents('midtrans_notifications.log', 
-        date('Y-m-d H:i:s') . " - Order ID: $order_id, Status: $status\n", 
-        FILE_APPEND
-    );
-
-    http_response_code(200);
-    echo "OK";
-
-} catch (Exception $e) {
-    // Log error
-    file_put_contents('midtrans_notifications.log', 
-        date('Y-m-d H:i:s') . " - Error: " . $e->getMessage() . "\n", 
-        FILE_APPEND
-    );
+if (!$data) {
     http_response_code(400);
-    echo "Error: " . $e->getMessage();
+    error_log("Invalid notification data received");
+    exit("Invalid notification data");
 }
+
+// Verifikasi signature (penting buat keamanan)
+$server_key = \Midtrans\Config::$serverKey;
+$order_id = $data['order_id'];
+$status_code = $data['status_code'];
+$gross_amount = $data['gross_amount'];
+$signature_key = $data['signature_key'];
+
+$expected_signature = hash('sha512', $order_id . $status_code . $gross_amount . $server_key);
+if ($signature_key !== $expected_signature) {
+    http_response_code(403);
+    error_log("Signature verification failed for order $order_id");
+    exit("Signature verification failed");
+}
+
+// Ambil order_id asli dari midtrans_order_id (format: ZK-{order_id}-{timestamp})
+$order_id_parts = explode('-', $order_id);
+if (count($order_id_parts) !== 3 || $order_id_parts[0] !== 'ZK') {
+    http_response_code(400);
+    error_log("Invalid midtrans_order_id format: $order_id");
+    exit("Invalid midtrans_order_id format");
+}
+$real_order_id = (int)$order_id_parts[1];
+
+// Ambil metode pembayaran dan status dari Midtrans
+$payment_type = $data['payment_type'] ?? null;
+$transaction_status = $data['transaction_status'] ?? null;
+
+if (!$payment_type || !$transaction_status) {
+    http_response_code(400);
+    error_log("Missing payment_type or transaction_status for order $real_order_id");
+    exit("Missing payment_type or transaction_status");
+}
+
+// Tentukan status baru berdasarkan transaction_status
+$status = 'pending';
+switch ($transaction_status) {
+    case 'settlement':
+    case 'capture':
+        $status = 'paid';
+        break;
+    case 'pending':
+        $status = 'pending';
+        break;
+    case 'deny':
+    case 'cancel':
+    case 'expire':
+        $status = 'failed';
+        break;
+    default:
+        http_response_code(400);
+        error_log("Unknown transaction_status: $transaction_status for order $real_order_id");
+        exit("Unknown transaction_status");
+}
+
+// Update status dan metode pembayaran di database
+$query = "UPDATE orders SET status = ?, metode_pembayaran = ? WHERE id = ? AND midtrans_order_id = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("ssis", $status, $payment_type, $real_order_id, $order_id);
+if (!$stmt->execute()) {
+    http_response_code(500);
+    error_log("Failed to update order $real_order_id: " . $conn->error);
+    exit("Failed to update order");
+}
+
+if ($stmt->affected_rows === 0) {
+    http_response_code(404);
+    error_log("No order found with id $real_order_id and midtrans_order_id $order_id");
+    exit("Order not found");
+}
+
+error_log("Order $real_order_id updated: status=$status, metode_pembayaran=$payment_type");
+http_response_code(200);
+echo "Success";
+?>
