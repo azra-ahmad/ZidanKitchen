@@ -15,8 +15,33 @@ $result = $conn->query("
     ORDER BY created_at ASC
 ");
 
-$completed_orders = $conn->query("SELECT * FROM orders WHERE status='done' ORDER BY created_at DESC LIMIT 10");
-$failed_orders = $conn->query("SELECT * FROM orders WHERE status='failed' ORDER BY created_at DESC LIMIT 10");
+// Query for recently completed orders (done)
+$completed_orders = $conn->query("
+    SELECT o.*, c.name AS customer_name 
+    FROM orders o
+    LEFT JOIN meja m ON o.id_meja = m.id_meja
+    LEFT JOIN customers c ON o.customer_id = c.id
+    WHERE o.status = 'done'
+    ORDER BY o.created_at DESC
+    LIMIT 5
+");
+if ($completed_orders === false) {
+    die("Error executing query for completed orders: " . $conn->error);
+}
+
+// Query for failed orders
+$failed_orders = $conn->query("
+    SELECT o.*, c.name AS customer_name 
+    FROM orders o
+    LEFT JOIN meja m ON o.id_meja = m.id_meja
+    LEFT JOIN customers c ON o.customer_id = c.id
+    WHERE o.status = 'failed'
+    ORDER BY o.created_at DESC
+    LIMIT 5
+");
+if ($failed_orders === false) {
+    die("Error executing query for failed orders: " . $conn->error);
+}
 
 // Statistics
 $total_pendapatan = $conn->query("SELECT IFNULL(SUM(total_harga), 0) AS total FROM orders WHERE status='done'")->fetch_assoc()['total'];
@@ -24,7 +49,7 @@ $total_pesanan = $conn->query("SELECT COUNT(id) AS total FROM orders")->fetch_as
 $pesanan_hari_ini = $conn->query("SELECT COUNT(id) AS total FROM orders WHERE DATE(created_at) = CURDATE()")->fetch_assoc()['total'];
 $pendapatan_hari_ini = $conn->query("SELECT IFNULL(SUM(total_harga), 0) AS total FROM orders WHERE status='done' AND DATE(created_at) = CURDATE()")->fetch_assoc()['total'];
 
-// Get recent 5 menu items - FIXED QUERY
+// Get recent 5 menu items
 $popular_menu = $conn->query("
     SELECT m.nama_menu, COUNT(oi.id_menu) as jumlah 
     FROM order_items oi 
@@ -72,6 +97,8 @@ $weekly_orders = $conn->query("
         .paid { background-color: #d1fae5; color: #065f46; }
         .done { background-color: #dbeafe; color: #1e40af; }
         .failed { background-color: #fee2e2; color: #991b1b; }
+        table { table-layout: auto; }
+        th, td { white-space: nowrap; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex">
@@ -228,6 +255,97 @@ $weekly_orders = $conn->query("
             <div class="bg-white rounded-xl shadow-md p-6">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">Pendapatan 7 Hari Terakhir</h3>
                 <canvas id="revenueChart" height="250"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Completed and Failed Orders -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Recent Completed Orders -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="p-6 border-b border-gray-100">
+                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-check-circle mr-2 text-green-500"></i> Pesanan Selesai Terakhir
+                    </h3>
+                </div>
+                <div class="overflow-x-auto max-w-full">
+                    <table class="min-w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Midtrans ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <?php while ($row = $completed_orders->fetch_assoc()): ?>
+                                <tr class="hover:bg-green-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['midtrans_order_id'] ?? '-' ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <?= date('d/m H:i', strtotime($row['created_at'])) ?>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
+                                            <i class="fas fa-eye"></i> Detail
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Failed Orders -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="p-6 border-b border-gray-100">
+                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-times-circle mr-2 text-red-500"></i> Pesanan Gagal Terakhir
+                    </h3>
+                </div>
+                <div class="overflow-x-auto max-w-full">
+                    <table class="min-w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <?php while ($row = $failed_orders->fetch_assoc()): ?>
+                                <tr class="hover:bg-red-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <?= date('d/m H:i', strtotime($row['created_at'])) ?>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
+                                            <i class="fas fa-eye"></i> Detail
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
