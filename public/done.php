@@ -4,42 +4,16 @@ include '../config/db.php';
 
 // Pastikan customer_id ada
 if (!isset($_SESSION['customer_id'])) {
-    header("Location: register.php?table=" . ($_SESSION['id_meja'] ?? ''));
+    header("Location: register.php?table=" . urlencode($_SESSION['id_meja'] ?? ''));
     exit;
 }
 
 $customer_id = $_SESSION['customer_id'];
-
-// Ambil id_meja dari session
 $id_meja = $_SESSION['id_meja'] ?? '';
 
-// Simpan pesanan
-if (isset($_SESSION['keranjang']) && !empty($_SESSION['keranjang'])) {
-    $total_harga = 0;
-    foreach ($_SESSION['keranjang'] as $item) {
-        $total_harga += $item['harga'] * $item['jumlah'];
-    }
-
-    // Insert ke tabel pesanan
-    $query = "INSERT INTO pesanan (customer_id, id_menu, nama_menu, jumlah, harga, tanggal_pesanan, status) VALUES (?, ?, ?, ?, ?, NOW(), 'Pending')";
-    $stmt = $conn->prepare($query);
-
-    foreach ($_SESSION['keranjang'] as $item) {
-        $stmt->bind_param("iisid", $customer_id, $item['id_menu'], $item['nama_menu'], $item['jumlah'], $item['harga']);
-        $stmt->execute();
-    }
-
-    // Kosongkan keranjang
-    unset($_SESSION['keranjang']);
-}
-
-// Bersihkan semua session yang relevan
+// Bersihkan session yang relevan, tapi simpen id_meja
 unset($_SESSION['customer_id']);
-unset($_SESSION['id_meja']);
-
-// Redirect ke register.php
-header("Location: register.php?table=" . urlencode($id_meja));
-exit;
+unset($_SESSION['order_id']);
 ?>
 
 <!DOCTYPE html>
@@ -68,7 +42,9 @@ exit;
         </div>
         <h1 class="text-2xl font-bold text-gray-800 mb-2">Pesanan Selesai!</h1>
         <p class="text-gray-600 mb-4">Terima kasih sudah memesan di ZidanKitchen. Kami tunggu kunjungan Anda lagi!</p>
-        <p class="text-sm text-gray-500">Anda akan diarahkan ke halaman registrasi dalam <span id="countdown">20</span> detik...</p>
+        <a href="register.php?table=<?= urlencode($id_meja) ?>" class="block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+            Pesan Lagi
+        </a>
     </div>
     <script>
         // Trigger confetti on load
@@ -77,17 +53,6 @@ exit;
             spread: 90,
             origin: { y: 0.6 }
         });
-
-        // Countdown timer
-        let countdown = 20;
-        const countdownElement = document.getElementById('countdown');
-        setInterval(() => {
-            countdown--;
-            countdownElement.textContent = countdown;
-            if (countdown <= 0) {
-                window.location = 'register.php';
-            }
-        }, 1000);
     </script>
 </body>
 </html>
