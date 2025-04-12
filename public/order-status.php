@@ -12,7 +12,7 @@ $order_id = (int)$_GET['order_id'];
 $status = $_GET['status'] ?? '';
 
 // Verify order belongs to customer
-$stmt = $conn->prepare("SELECT o.id, o.total_harga, o.status, o.midtrans_order_id, c.name 
+$stmt = $conn->prepare("SELECT o.id, o.total_harga, o.status, o.midtrans_order_id, o.metode_pembayaran, c.name 
                        FROM orders o
                        JOIN customers c ON o.customer_id = c.id
                        WHERE o.id = ? AND o.customer_id = ?");
@@ -49,10 +49,11 @@ if ($order['status'] === 'pending' && !empty($order['midtrans_order_id'])) {
         }
 
         if ($new_status !== $order['status']) {
-            $update_stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
-            $update_stmt->bind_param("si", $new_status, $order_id);
+            $update_stmt = $conn->prepare("UPDATE orders SET status = ?, metode_pembayaran = ? WHERE id = ?");
+            $update_stmt->bind_param("ssi", $new_status, $status_response->payment_type, $order_id);
             $update_stmt->execute();
             $order['status'] = $new_status;
+            $order['metode_pembayaran'] = $status_response->payment_type;
         }
     } catch (Exception $e) {
         error_log("Midtrans status check failed for order $order_id: " . $e->getMessage());
@@ -122,6 +123,10 @@ switch ($status) {
             <div class="flex justify-between mb-2">
                 <span class="text-gray-600">Nomor Pesanan</span>
                 <span class="font-medium">ZK-<?= str_pad($order_id, 5, '0', STR_PAD_LEFT) ?></span>
+            </div>
+            <div class="flex justify-between mb-2">
+                <span class="text-gray-600">Metode Pembayaran</span>
+                <span class="font-medium"><?= $order['metode_pembayaran'] ? ucfirst($order['metode_pembayaran']) : '-' ?></span>
             </div>
             <div class="flex justify-between">
                 <span class="text-gray-600">Total Pembayaran</span>
