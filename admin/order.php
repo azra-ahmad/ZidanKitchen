@@ -93,6 +93,8 @@ function buildUrl($params) {
     <link rel="icon" type="image/x-icon" href="../assets/images/logo_oren.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.5/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.5/dist/sweetalert2.all.min.js"></script>
     <style>
         body {
             font-size: 0.95rem;
@@ -174,6 +176,39 @@ function buildUrl($params) {
         .pagination-button.disabled {
             color: #d1d5db;
             cursor: not-allowed;
+        }
+        /* SweetAlert2 Custom Styles */
+        .swal2-container {
+            z-index: 99999 !important;
+        }
+        .swal2-backdrop-show {
+            background: rgba(0, 0, 0, 0.4) !important;
+        }
+        .swal2-popup {
+            animation: fadeIn 0.3s, bounceIn 0.5s;
+        }
+        /* Animasi saat popup muncul */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes bounceIn {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        /* Animasi saat popup ditutup */
+        .swal2-popup.swal2-hide {
+            animation: fadeOut 0.3s, bounceOut 0.5s;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        @keyframes bounceOut {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(0.8); }
         }
     </style>
 </head>
@@ -264,13 +299,13 @@ function buildUrl($params) {
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= date('d/m H:i', strtotime($row['created_at'])) ?>
+                                    <?= $row['created_at'] ? date('d/m H:i', strtotime($row['created_at'])) : '-' ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
                                         <i class="fas fa-eye"></i> Detail
                                     </a>
-                                    <a href="proses_pesanan.php?id=<?= $row['id'] ?>" class="text-green-600 hover:text-green-900">
+                                    <a href="proses_pesanan.php?id=<?= $row['id'] ?>" class="text-green-600 hover:text-green-900 btn-proses">
                                         <i class="fas fa-check"></i> Selesai
                                     </a>
                                 </td>
@@ -346,7 +381,7 @@ function buildUrl($params) {
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= date('d/m H:i', strtotime($row['created_at'])) ?>
+                                    <?= $row['created_at'] ? date('d/m H:i', strtotime($row['created_at'])) : '-' ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
@@ -425,7 +460,7 @@ function buildUrl($params) {
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?= date('d/m H:i', strtotime($row['created_at'])) ?>
+                                    <?= $row['created_at'] ? date('d/m H:i', strtotime($row['created_at'])) : '-' ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
@@ -472,12 +507,39 @@ function buildUrl($params) {
     </div>
 
     <script>
-        // Add confirmation for completing orders
-        document.querySelectorAll('a[href*="proses_pesanan.php"]').forEach(link => {
+        // Add confirmation for completing orders using SweetAlert2
+        document.querySelectorAll('.btn-proses').forEach(link => {
             link.addEventListener('click', function(e) {
-                if (!confirm('Apakah Anda yakin ingin menyelesaikan pesanan ini?')) {
-                    e.preventDefault();
-                }
+                e.preventDefault();
+                const href = this.getAttribute('href');
+
+                Swal.fire({
+                    title: 'Konfirmasi Penyelesaian Pesanan',
+                    text: "Apakah Anda yakin ingin menyelesaikan pesanan ini?",
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#f97316',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: 'Ya, Selesaikan!',
+                    cancelButtonText: 'Batal',
+                    allowOutsideClick: false,
+                    allowEscapeKey: true,
+                    allowEnterKey: false,
+                    stopKeydownPropagation: false,
+                    backdrop: `
+                        rgba(249, 115, 22, 0.2)
+                        left top
+                        no-repeat
+                    `,
+                    didClose: () => {
+                        // Pastikan backdrop dihapus setelah popup ditutup
+                        document.querySelector('.swal2-container')?.remove();
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = href;
+                    }
+                });
             });
         });
     </script>
