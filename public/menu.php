@@ -3,12 +3,6 @@ session_start();
 include '../config/db.php';
 include '../config/functions.php';
 
-// Hitung jumlah item di keranjang
-$cart_count = 0;
-if (isset($_SESSION['keranjang']) && is_array($_SESSION['keranjang'])) {
-    $cart_count = array_sum(array_column($_SESSION['keranjang'], 'jumlah'));
-}
-
 if (!isset($_SESSION['id_meja']) || !isset($_SESSION['customer_id'])) {
     header("Location: register.php?table=" . ($_SESSION['id_meja'] ?? ''));
     exit;
@@ -107,7 +101,7 @@ foreach ($menu_data as $menu) {
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0 viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Menu - ZidanKitchen</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module" src="https://unpkg.com/@google/model-viewer"></script>
@@ -167,9 +161,6 @@ foreach ($menu_data as $menu) {
                         <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
                         </svg>
-                        <?php if ($cart_count > 0): ?>
-                            <span class="cart-count absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse"><?php echo $cart_count; ?></span>
-                        <?php endif; ?>
                     </div>
                 </a>
             </div>
@@ -301,7 +292,7 @@ foreach ($menu_data as $menu) {
                 <span class="text-xs mt-1">Menu</span>
             </a>
             <a href="success.php" class="flex flex-col items-center px-4 py-1 hover:text-blue-600">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 ':
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
                 </svg>
                 <span class="text-xs mt-1">Pesanan</span>
@@ -352,6 +343,7 @@ foreach ($menu_data as $menu) {
             }
         }
 
+        // Handle Add to Cart
         document.addEventListener('DOMContentLoaded', function() {
             const addButtons = document.querySelectorAll('.btn-tambah');
             addButtons.forEach(button => {
@@ -361,31 +353,20 @@ foreach ($menu_data as $menu) {
                     fetch('add_to_cart.php', {
                         method: 'POST',
                         body: new FormData(form)
-                    }).then(() => {
-                        animateCart();
-                        showToast('Berhasil ditambahkan ke keranjang!');
-                        updateCartCount();
+                    }).then(response => {
+                        if (response.ok) {
+                            animateCart();
+                            showToast('Berhasil ditambahkan ke keranjang!');
+                        } else {
+                            showToast('Gagal menambahkan ke keranjang.');
+                        }
+                    }).catch(error => {
+                        console.error('Error:', error);
+                        showToast('Terjadi kesalahan, coba lagi.');
                     });
                 });
             });
         });
-
-        // Update Cart Count
-        function updateCartCount() {
-            fetch('get_cart_count.php')
-                .then(response => response.json())
-                .then(data => {
-                    const cartCounts = document.querySelectorAll('.cart-count');
-                    cartCounts.forEach(el => {
-                        if (data.count > 0) {
-                            el.textContent = data.count;
-                            el.style.display = 'flex';
-                        } else {
-                            el.style.display = 'none';
-                        }
-                    });
-                });
-        }
 
         // Category Filter
         document.querySelectorAll('.category-scroll button').forEach(button => {
