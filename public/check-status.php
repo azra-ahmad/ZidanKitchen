@@ -1,17 +1,18 @@
 <?php
 session_start();
-require_once '../config/db.php';
-header('Content-Type: application/json');
+include '../config/db.php';
 
-$order_id = (int)($_GET['order_id'] ?? 0);
-if ($order_id === 0 || !isset($_SESSION['customer_id'])) {
+if (!isset($_GET['order_id']) || !isset($_SESSION['customer_id'])) {
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid order_id or session']);
+    echo json_encode(['error' => 'Invalid request']);
     exit;
 }
 
+$order_id = (int)$_GET['order_id'];
+$customer_id = $_SESSION['customer_id'];
+
 $stmt = $conn->prepare("SELECT status FROM orders WHERE id = ? AND customer_id = ?");
-$stmt->bind_param("ii", $order_id, $_SESSION['customer_id']);
+$stmt->bind_param("ii", $order_id, $customer_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -22,6 +23,5 @@ if ($result->num_rows === 0) {
 }
 
 $order = $result->fetch_assoc();
-echo json_encode(['status' => $order['status'] ?? 'pending']);
-$stmt->close();
+echo json_encode(['status' => $order['status']]);
 ?>
