@@ -5,6 +5,7 @@ include '../config/db.php';
 
 // Validate session and parameters
 if (!isset($_SESSION['customer_id']) || !isset($_GET['order_id']) || !isset($_GET['total'])) {
+    error_log("Missing session or parameters: customer_id=" . ($_SESSION['customer_id'] ?? 'unset') . ", order_id=" . ($_GET['order_id'] ?? 'unset') . ", total=" . ($_GET['total'] ?? 'unset'));
     header("Location: menu.php");
     exit;
 }
@@ -134,9 +135,8 @@ try {
 function getOrderItems($order_id, $conn) {
     $items = [];
     $stmt = $conn->prepare("
-        SELECT oi.id_menu, m.nama_menu, oi.jumlah, m.harga 
+        SELECT oi.id_menu, oi.nama_menu, oi.jumlah, oi.harga 
         FROM order_items oi
-        JOIN menu m ON oi.id_menu = m.id_menu
         WHERE oi.order_id = ?
     ");
     $stmt->bind_param("i", $order_id);
@@ -148,7 +148,7 @@ function getOrderItems($order_id, $conn) {
         $items[] = [
             'id' => $row['id_menu'],
             'name' => $row['nama_menu'],
-            'price' => $row['harga'],
+            'price' => $row['harga'], // Pake harga setelah diskon dari order_items
             'quantity' => $row['jumlah']
         ];
         $total += $row['harga'] * $row['jumlah'];
@@ -205,9 +205,18 @@ function getOrderItems($order_id, $conn) {
                 this.disabled = true;
                 
                 snap.pay('<?= $snapToken ?>', {
-                    onSuccess: function(result) { window.location = 'success.php'; },
-                    onPending: function(result) { window.location = 'order-status.php?order_id=<?= $order_id ?>&status=pending'; },
-                    onError: function(error) { window.location = 'order-status.php?order_id=<?= $order_id ?>&status=error'; },
+                    onSuccess: function(result) {
+                        console.log('Payment Success:', result);
+                        window.location = 'success.php';
+                    },
+                    onPending: function(result) {
+                        console.log('Payment Pending:', result);
+                        window.location = 'order-status.php?order_id=<?= $order_id ?>&status=pending';
+                    },
+                    onError: function(error) {
+                        console.log('Payment Error:', error);
+                        window.location = 'order-status.php?order_id=<?= $order_id ?>&status=error';
+                    },
                     onClose: function() {
                         document.getElementById('pay-button').innerHTML = 'Pilih Metode Pembayaran';
                         document.getElementById('pay-button').disabled = false;
