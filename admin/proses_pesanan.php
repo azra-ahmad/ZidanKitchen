@@ -21,12 +21,18 @@ $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $order_id);
 
 if ($stmt->execute()) {
-    $_SESSION['success_message'] = "Pesanan #$order_id berhasil diselesaikan.";
+    $_SESSION['alert'] = [
+        'type' => 'success',
+        'message' => "Pesanan #$order_id berhasil diselesaikan!"
+    ];
 } else {
-    $_SESSION['error_message'] = "Gagal menyelesaikan pesanan.";
+    $_SESSION['alert'] = [
+        'type' => 'error',
+        'message' => "Gagal menyelesaikan pesanan #$order_id"
+    ];
 }
 
-// Kembali ke dashboard admin
-header("Location: order.php");
+// Redirect kembali ke detail_pesanan.php biar user bisa lihat hasilnya
+header("Location: detail_pesanan.php?id=$order_id");
 exit;
 ?>
