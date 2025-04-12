@@ -102,7 +102,6 @@ $estimated_minutes = 15;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pesanan Sedang Dimasak - ZidanKitchen</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         @keyframes pulse {
@@ -242,50 +241,26 @@ $estimated_minutes = 15;
                 </a>
             </div>
         </nav>
-
-        <!-- Success Modal -->
-        <!-- <div id="success-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-            <div class="bg-white rounded-xl p-6 max-w-sm w-full text-center transform transition-all scale-95">
-                <div class="mb-4">
-                    <svg class="w-16 h-16 mx-auto text-green-500 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                </div>
-                <h2 class="text-xl font-bold text-gray-800 mb-2">Pesanan Selesai!</h2>
-                <p class="text-gray-600 mb-4">Terima kasih sudah memesan di ZidanKitchen. Sampai jumpa lagi!</p>
-                <button id="close-modal" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
-                    Kembali ke Menu
-                </button>
-            </div>
-        </div> -->
     </div>
     <script>
         function checkStatus() {
+            const refreshButton = document.getElementById('refresh-status');
+            refreshButton.innerHTML = 'Memuat...';
+            refreshButton.classList.add('opacity-50', 'cursor-not-allowed');
+
             fetch('check-status.php?order_id=<?= $order_id ?>')
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'done') {
-                        // Show modal
-                        const modal = document.getElementById('success-modal');
-                        modal.classList.remove('hidden');
-                        modal.querySelector('.scale-95').classList.remove('scale-95');
-                        modal.querySelector('.scale-95').classList.add('scale-100');
-
-                        // Trigger confetti
-                        confetti({
-                            particleCount: 100,
-                            spread: 70,
-                            origin: { y: 0.6 }
-                        });
-
-                        // Redirect on button click
-                        document.getElementById('close-modal').addEventListener('click', () => {
-                            window.location = 'done.php';
-                        });
+                        window.location = 'done.php';
                     }
                 })
                 .catch(error => {
                     console.error('Error checking status:', error);
+                })
+                .finally(() => {
+                    refreshButton.innerHTML = 'Refresh Status';
+                    refreshButton.classList.remove('opacity-50', 'cursor-not-allowed');
                 });
         }
 
@@ -296,11 +271,7 @@ $estimated_minutes = 15;
         setInterval(checkStatus, 5000);
 
         // Bind checkStatus to refresh button
-        document.getElementById('refresh-status').addEventListener('click', function() {
-            this.innerHTML = 'Memuat...';
-            this.classList.add('opacity-50', 'cursor-not-allowed');
-            checkStatus();
-        });
+        document.getElementById('refresh-status').addEventListener('click', checkStatus);
     </script>
 </body>
 </html>
