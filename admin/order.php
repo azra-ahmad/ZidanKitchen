@@ -8,34 +8,49 @@ if (!isset($_SESSION['admin_logged_in'])) {
 include '../config/db.php';
 date_default_timezone_set('Asia/Jakarta');
 
-// Query for current orders (pending/paid)
-$current_orders = $conn->query("
-    SELECT o.* 
+// Query for current orders (pending/paid) with error handling
+$current_orders_query = "
+    SELECT o.*, c.name AS customer_name 
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
+    LEFT JOIN customers c ON o.customer_id = c.id
     WHERE o.status IN ('pending', 'paid')
     ORDER BY o.created_at DESC
-");
+";
+$current_orders = $conn->query($current_orders_query);
+if ($current_orders === false) {
+    die("Error executing query for current orders: " . $conn->error);
+}
 
-// Query for recently completed orders (done)
-$completed_orders = $conn->query("
-    SELECT o.* 
+// Query for recently completed orders (done) with error handling
+$completed_orders_query = "
+    SELECT o.*, c.name AS customer_name 
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
+    LEFT JOIN customers c ON o.customer_id = c.id
     WHERE o.status = 'done'
     ORDER BY o.created_at DESC
     LIMIT 5
-");
+";
+$completed_orders = $conn->query($completed_orders_query);
+if ($completed_orders === false) {
+    die("Error executing query for completed orders: " . $conn->error);
+}
 
-// Query for failed orders
-$failed_orders = $conn->query("
-    SELECT o.* 
+// Query for failed orders with error handling
+$failed_orders_query = "
+    SELECT o.*, c.name AS customer_name 
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
+    LEFT JOIN customers c ON o.customer_id = c.id
     WHERE o.status = 'failed'
     ORDER BY o.created_at DESC
     LIMIT 5
-");
+";
+$failed_orders = $conn->query($failed_orders_query);
+if ($failed_orders === false) {
+    die("Error executing query for failed orders: " . $conn->error);
+}
 ?>
 
 <!DOCTYPE html>
@@ -49,63 +64,41 @@ $failed_orders = $conn->query("
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        body {
+            font-size: 0.95rem;
+        }
+
+        .main-content {
+            margin-left: 16rem; /* ml-64 */
+            padding: 2rem;
+            max-width: calc(100vw - 16rem); /* Cegah overflow dari sidebar */
+            overflow-x: hidden;
+        }
+
         .status-badge {
             @apply px-3 py-1 rounded-full text-xs font-medium;
         }
 
         .status-badge.pending {
             @apply bg-orange-100 text-orange-800;
-        }
-
-        .status-badge.paid {
-            @apply bg-blue-100 text-blue-800;
-        }
-
-        .status-badge.done {
-            @apply bg-green-100 text-green-800;
-        }
-
-        .status-badge.failed {
-            @apply bg-red-100 text-red-800;
-        }
-
-        <style>body {
-            font-size: 0.95rem;
-        }
-
-        .main-content {
-            margin-left: 16rem;
-            /* ml-64 */
-            padding: 2rem;
-            max-width: calc(100vw - 16rem);
-            /* cegah overflow dari sidebar */
-            overflow-x: hidden;
-        }
-
-        .status-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            display: inline-block;
-        }
-
-        .status-badge.pending {
             background-color: #fef3c7;
             color: #c2410c;
         }
 
         .status-badge.paid {
+            @apply bg-blue-100 text-blue-800;
             background-color: #dbeafe;
             color: #1e3a8a;
         }
 
         .status-badge.done {
+            @apply bg-green-100 text-green-800;
             background-color: #d1fae5;
             color: #065f46;
         }
 
         .status-badge.failed {
+            @apply bg-red-100 text-red-800;
             background-color: #fee2e2;
             color: #991b1b;
         }
@@ -119,9 +112,6 @@ $failed_orders = $conn->query("
             white-space: nowrap;
         }
     </style>
-
-    </style>
-
 </head>
 
 <body class="bg-gray-50 min-h-screen flex">
@@ -187,6 +177,8 @@ $failed_orders = $conn->query("
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Midtrans ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
@@ -199,9 +191,11 @@ $failed_orders = $conn->query("
                         <?php while ($row = $current_orders->fetch_assoc()): ?>
                             <tr class="hover:bg-orange-50">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['midtrans_order_id'] ?? '-' ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= ucfirst($row['metode_pembayaran']) ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="status-badge <?= $row['status'] ?>">
                                         <?= ucfirst($row['status']) ?>
@@ -238,8 +232,11 @@ $failed_orders = $conn->query("
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Midtrans ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                             </tr>
@@ -248,8 +245,11 @@ $failed_orders = $conn->query("
                             <?php while ($row = $completed_orders->fetch_assoc()): ?>
                                 <tr class="hover:bg-green-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['midtrans_order_id'] ?? '-' ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <?= date('d/m H:i', strtotime($row['created_at'])) ?>
                                     </td>
@@ -277,8 +277,11 @@ $failed_orders = $conn->query("
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Midtrans ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                             </tr>
@@ -287,8 +290,11 @@ $failed_orders = $conn->query("
                             <?php while ($row = $failed_orders->fetch_assoc()): ?>
                                 <tr class="hover:bg-red-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['midtrans_order_id'] ?? '-' ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <?= date('d/m H:i', strtotime($row['created_at'])) ?>
                                     </td>
