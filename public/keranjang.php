@@ -60,18 +60,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $keranjang_display = [];
 $total = 0;
 
+// Cek promo bundle yang aktif untuk keranjang ini
+$active_bundle_promo = null;
+foreach ($promos as $promo) {
+    if ($promo['promo_type'] === 'bundle' && checkBundlePromo($_SESSION['keranjang'], $promo)) {
+        $active_bundle_promo = $promo;
+        break;
+    }
+}
+
 foreach ($_SESSION['keranjang'] as $item) {
     $id_menu = $item['id_menu'];
     if (isset($menu_data[$id_menu])) {
         $menu_item = $menu_data[$id_menu];
-        $harga_promo = getItemPrice($id_menu, $_SESSION['keranjang'], $menu_data, $promos);
-        $subtotal = $harga_promo * $item['jumlah'];
         
+        // Tentukan harga dan promo
+        $harga_promo = $menu_item['harga']; // Default: harga asli
         $promo_type = null;
         $promo_title = null;
+
+        // Cek promo diskon
         $discount = getMenuDiscount($id_menu, $promos);
         if ($discount > 0) {
             $promo_type = 'discount';
+            $harga_promo = $menu_item['harga'] - ($menu_item['harga'] * $discount / 100);
             foreach ($promos as $promo) {
                 if ($promo['promo_type'] === 'discount' && in_array($id_menu, $promo['menu_target'])) {
                     $promo_title = $promo['title'];
@@ -79,14 +91,15 @@ foreach ($_SESSION['keranjang'] as $item) {
                 }
             }
         } else {
-            foreach ($promos as $promo) {
-                if (checkBundlePromo($_SESSION['keranjang'], $promo) && in_array($id_menu, $promo['bundle_items'])) {
-                    $promo_type = 'bundle';
-                    $promo_title = $promo['title'];
-                    break;
-                }
+            // Cek promo bundle
+            if ($active_bundle_promo && in_array($id_menu, $active_bundle_promo['bundle_items'])) {
+                $promo_type = 'bundle';
+                $promo_title = $active_bundle_promo['title'];
+                $harga_promo = getItemPrice($id_menu, $_SESSION['keranjang'], $menu_data, $promos);
             }
         }
+
+        $subtotal = $harga_promo * $item['jumlah'];
 
         $keranjang_display[] = [
             'id_menu' => $id_menu,

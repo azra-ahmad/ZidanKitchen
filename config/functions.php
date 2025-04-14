@@ -108,20 +108,25 @@ function getItemPrice($menu_id, $cart, $menu_data, $promos) {
     }
 
     if ($bundle_discount_total > 0) {
-        // Proporsikan diskon ke setiap item dalam bundle
         $bundle_items = $applicable_bundle_promo['bundle_items'];
-        $total_original_bundle = 0;
-        foreach ($cart as $cart_item) {
-            if (in_array($cart_item['id_menu'], $bundle_items)) {
-                $total_original_bundle += $menu_data[$cart_item['id_menu']]['harga'] * $cart_item['jumlah'];
+        // Hanya terapkan diskon bundle jika menu_id ada di bundle_items
+        if (in_array($menu_id, $bundle_items)) {
+            // Proporsikan diskon ke setiap item dalam bundle
+            $total_original_bundle = 0;
+            foreach ($cart as $cart_item) {
+                if (in_array($cart_item['id_menu'], $bundle_items)) {
+                    $total_original_bundle += $menu_data[$cart_item['id_menu']]['harga'] * $cart_item['jumlah'];
+                }
             }
-        }
 
-        // Hitung proporsi diskon untuk item ini
-        if ($total_original_bundle > 0) {
-            $item_original_total = $original_price;
-            $discount_proportion = ($item_original_total / $total_original_bundle) * $bundle_discount_total;
-            return $original_price - ($discount_proportion / $cart[array_search($menu_id, array_column($cart, 'id_menu'))]['jumlah']);
+            // Hitung proporsi diskon untuk item ini
+            if ($total_original_bundle > 0) {
+                $item_original_total = $original_price;
+                $discount_proportion = ($item_original_total / $total_original_bundle) * $bundle_discount_total;
+                $item_index = array_search($menu_id, array_column($cart, 'id_menu'));
+                $item_quantity = $cart[$item_index]['jumlah'];
+                return $original_price - ($discount_proportion / $item_quantity);
+            }
         }
     }
 
