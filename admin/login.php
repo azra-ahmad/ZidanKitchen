@@ -73,12 +73,5 @@ unset($_SESSION['login_error']);
         </form>
         <p class="text-center mt-4">Belum punya akun? <a href="register_admin.php" class="text-orange-600 hover:underline">Daftar</a></p>
     </div>
-
 </body>
-
-</html> 
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-
 </html>

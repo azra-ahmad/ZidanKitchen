@@ -10,7 +10,7 @@ date_default_timezone_set('Asia/Jakarta');
 
 // Check if order ID is provided
 if (!isset($_GET['id'])) {
-    header("Location: dashboard.php");
+    header("Location: order.php?error=Missing order ID");
     exit();
 }
 
@@ -20,9 +20,9 @@ $order_id = intval($_GET['id']);
 $order_query = $conn->prepare("
     SELECT o.*, c.name AS customer_name, c.phone AS customer_phone 
     FROM orders o
-    LEFT JOIN meja m ON o.id_meja = m.id_meja
-    LEFT JOIN customers c ON o.customer_id = c.id
-    WHERE o.id = ?
+    LEFT JOIN meja m ON o.meja_id = m.meja_id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
+    WHERE o.order_id = ?
 ");
 $order_query->bind_param("i", $order_id);
 $order_query->execute();
@@ -30,14 +30,15 @@ $result = $order_query->get_result();
 $order = $result->fetch_assoc();
 
 if (!$order) {
-    die("Order not found");
+    header("Location: order.php?error=Order not found");
+    exit();
 }
 
 // Fetch order items
 $items_query = $conn->prepare("
     SELECT oi.*, m.nama_menu, m.gambar 
     FROM order_items oi
-    LEFT JOIN menu m ON oi.id_menu = m.id_menu
+    LEFT JOIN menu m ON oi.menu_id = m.menu_id
     WHERE oi.order_id = ?
 ");
 $items_query->bind_param("i", $order_id);
@@ -96,7 +97,6 @@ if (isset($_SESSION['alert'])) {
         .swal2-popup {
             animation: fadeIn 0.3s, bounceIn 0.5s;
         }
-        /* Animasi saat popup muncul */
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -106,7 +106,6 @@ if (isset($_SESSION['alert'])) {
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
-        /* Animasi saat popup ditutup */
         .swal2-popup.swal2-hide {
             animation: fadeOut 0.3s, bounceOut 0.5s;
         }
@@ -162,14 +161,14 @@ if (isset($_SESSION['alert'])) {
             <!-- Header -->
             <div class="flex justify-between items-center mb-8">
                 <h2 class="text-3xl font-bold text-orange-600">
-                    <i class="fas fa-clipboard-list mr-2"></i> Detail Pesanan #<?= $order['id'] ?>
+                    <i class="fas fa-clipboard-list mr-2"></i> Detail Pesanan #<?= $order['order_id'] ?>
                 </h2>
                 <div class="flex items-center space-x-4">
                     <a href="order.php" class="text-gray-600 hover:text-orange-600 transition">
                         <i class="fas fa-arrow-left mr-1"></i> Kembali
                     </a>
                     <?php if ($order['status'] == 'pending' || $order['status'] == 'paid'): ?>
-                        <a href="proses_pesanan.php?id=<?= $order['id'] ?>" 
+                        <a href="proses_pesanan.php?id=<?= $order['order_id'] ?>" 
                            class="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-3 rounded-lg shadow-md hover:opacity-90 transition flex items-center btn-proses">
                             <i class="fas fa-check-circle mr-2"></i> Proses Pesanan
                         </a>
@@ -201,7 +200,7 @@ if (isset($_SESSION['alert'])) {
                                 </div>
                                 <div class="flex justify-between">
                                     <span class="text-gray-600"><i class="fas fa-chair mr-2"></i> Meja:</span>
-                                    <span class="font-medium"><?= $order['id_meja'] ?></span>
+                                    <span class="font-medium"><?= $order['meja_id'] ?></span>
                                 </div>
                             </div>
                         </div>
@@ -263,7 +262,7 @@ if (isset($_SESSION['alert'])) {
                                     <h4 class="font-medium text-gray-800"><?= $item['nama_menu'] ?></h4>
                                     <div class="flex justify-between mt-2">
                                         <div class="text-gray-600">
-                                            <?= $item['jumlah'] ?> x Rp <?= number_format($item['harga'], 0, ',', '.') ?>
+                                            <?= $item['jumlah'] ?> x Rp <?= number_format($item['subtotal'] / $item['jumlah'], 0, ',', '.') ?>
                                         </div>
                                         <div class="font-medium text-orange-600">
                                             Rp <?= number_format($item['subtotal'], 0, ',', '.') ?>
@@ -329,7 +328,6 @@ if (isset($_SESSION['alert'])) {
                     popup: 'swal2-popup-custom'
                 },
                 didClose: () => {
-                    // Pastikan backdrop dihapus setelah popup ditutup
                     document.querySelector('.swal2-container')?.remove();
                 }
             }).then((result) => {

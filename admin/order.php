@@ -21,36 +21,50 @@ $offset_current = ($current_page_current - 1) * $items_per_page;
 
 // Build the WHERE clause for Current Orders
 $where_clause_current = "WHERE o.status IN ('pending', 'paid')";
+$params = [];
 if ($status_filter !== 'all') {
-    $status_filter = $conn->real_escape_string($status_filter);
-    $where_clause_current .= " AND o.status = '$status_filter'";
+    $where_clause_current .= " AND o.status = ?";
+    $params[] = $status_filter;
 }
 if ($search_query) {
-    $search_query = $conn->real_escape_string($search_query);
-    $where_clause_current .= " AND (o.id LIKE '%$search_query%' 
-                            OR o.midtrans_order_id LIKE '%$search_query%' 
-                            OR c.name LIKE '%$search_query%')";
+    $where_clause_current .= " AND (o.order_id LIKE ? OR o.midtrans_order_id LIKE ? OR c.name LIKE ?)";
+    $search_like = "%$search_query%";
+    $params[] = $search_like;
+    $params[] = $search_like;
+    $params[] = $search_like;
 }
 
-$total_current_query = $conn->query("
+// Total Current Orders
+$stmt = $conn->prepare("
     SELECT COUNT(*) 
     FROM orders o
-    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
     $where_clause_current
 ");
-$total_current = $total_current_query->fetch_row()[0];
+if ($params) {
+    $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+}
+$stmt->execute();
+$total_current = $stmt->get_result()->fetch_row()[0];
 $total_pages_current = ceil($total_current / $items_per_page);
 
+// Fetch Current Orders
 $current_orders_query = "
     SELECT o.*, c.name AS customer_name 
     FROM orders o
-    LEFT JOIN meja m ON o.id_meja = m.id_meja
-    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN meja m ON o.meja_id = m.meja_id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
     $where_clause_current
     ORDER BY o.created_at DESC
-    LIMIT $items_per_page OFFSET $offset_current
+    LIMIT ? OFFSET ?
 ";
-$current_orders = $conn->query($current_orders_query);
+$stmt = $conn->prepare($current_orders_query);
+$types = str_repeat('s', count($params)) . 'ii';
+$params[] = $items_per_page;
+$params[] = $offset_current;
+$stmt->bind_param($types, ...$params);
+$stmt->execute();
+$current_orders = $stmt->get_result();
 if ($current_orders === false) {
     die("Error executing query for current orders: " . $conn->error);
 }
@@ -61,31 +75,46 @@ $offset_completed = ($current_page_completed - 1) * $items_per_page;
 
 // Build the WHERE clause for Completed Orders
 $where_clause_completed = "WHERE o.status = 'done'";
+$params_completed = [];
 if ($search_query) {
-    $where_clause_completed .= " AND (o.id LIKE '%$search_query%' 
-                               OR o.midtrans_order_id LIKE '%$search_query%' 
-                               OR c.name LIKE '%$search_query%')";
+    $where_clause_completed .= " AND (o.order_id LIKE ? OR o.midtrans_order_id LIKE ? OR c.name LIKE ?)";
+    $search_like = "%$search_query%";
+    $params_completed[] = $search_like;
+    $params_completed[] = $search_like;
+    $params_completed[] = $search_like;
 }
 
-$total_completed_query = $conn->query("
+// Total Completed Orders
+$stmt = $conn->prepare("
     SELECT COUNT(*) 
     FROM orders o
-    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
     $where_clause_completed
 ");
-$total_completed = $total_completed_query->fetch_row()[0];
+if ($params_completed) {
+    $stmt->bind_param(str_repeat('s', count($params_completed)), ...$params_completed);
+}
+$stmt->execute();
+$total_completed = $stmt->get_result()->fetch_row()[0];
 $total_pages_completed = ceil($total_completed / $items_per_page);
 
+// Fetch Completed Orders
 $completed_orders_query = "
     SELECT o.*, c.name AS customer_name 
     FROM orders o
-    LEFT JOIN meja m ON o.id_meja = m.id_meja
-    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN meja m ON o.meja_id = m.meja_id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
     $where_clause_completed
     ORDER BY o.created_at DESC
-    LIMIT $items_per_page OFFSET $offset_completed
+    LIMIT ? OFFSET ?
 ";
-$completed_orders = $conn->query($completed_orders_query);
+$stmt = $conn->prepare($completed_orders_query);
+$types = str_repeat('s', count($params_completed)) . 'ii';
+$params_completed[] = $items_per_page;
+$params_completed[] = $offset_completed;
+$stmt->bind_param($types, ...$params_completed);
+$stmt->execute();
+$completed_orders = $stmt->get_result();
 if ($completed_orders === false) {
     die("Error executing query for completed orders: " . $conn->error);
 }
@@ -96,31 +125,46 @@ $offset_failed = ($current_page_failed - 1) * $items_per_page;
 
 // Build the WHERE clause for Failed Orders
 $where_clause_failed = "WHERE o.status = 'failed'";
+$params_failed = [];
 if ($search_query) {
-    $where_clause_failed .= " AND (o.id LIKE '%$search_query%' 
-                             OR o.midtrans_order_id LIKE '%$search_query%' 
-                             OR c.name LIKE '%$search_query%')";
+    $where_clause_failed .= " AND (o.order_id LIKE ? OR o.midtrans_order_id LIKE ? OR c.name LIKE ?)";
+    $search_like = "%$search_query%";
+    $params_failed[] = $search_like;
+    $params_failed[] = $search_like;
+    $params_failed[] = $search_like;
 }
 
-$total_failed_query = $conn->query("
+// Total Failed Orders
+$stmt = $conn->prepare("
     SELECT COUNT(*) 
     FROM orders o
-    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
     $where_clause_failed
 ");
-$total_failed = $total_failed_query->fetch_row()[0];
+if ($params_failed) {
+    $stmt->bind_param(str_repeat('s', count($params_failed)), ...$params_failed);
+}
+$stmt->execute();
+$total_failed = $stmt->get_result()->fetch_row()[0];
 $total_pages_failed = ceil($total_failed / $items_per_page);
 
+// Fetch Failed Orders
 $failed_orders_query = "
     SELECT o.*, c.name AS customer_name 
     FROM orders o
-    LEFT JOIN meja m ON o.id_meja = m.id_meja
-    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN meja m ON o.meja_id = m.meja_id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
     $where_clause_failed
     ORDER BY o.created_at DESC
-    LIMIT $items_per_page OFFSET $offset_failed
+    LIMIT ? OFFSET ?
 ";
-$failed_orders = $conn->query($failed_orders_query);
+$stmt = $conn->prepare($failed_orders_query);
+$types = str_repeat('s', count($params_failed)) . 'ii';
+$params_failed[] = $items_per_page;
+$params_failed[] = $offset_failed;
+$stmt->bind_param($types, ...$params_failed);
+$stmt->execute();
+$failed_orders = $stmt->get_result();
 if ($failed_orders === false) {
     die("Error executing query for failed orders: " . $conn->error);
 }
@@ -198,7 +242,7 @@ function buildUrl($params) {
             justify-content: space-between;
             align-items: center;
             padding: 1rem 1.5rem;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid;
         }
         .pagination-info {
             font-size: 0.875rem;
@@ -390,10 +434,10 @@ function buildUrl($params) {
                     <tbody class="divide-y divide-gray-100">
                         <?php while ($row = $current_orders->fetch_assoc()): ?>
                             <tr class="hover:bg-orange-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['order_id'] ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['midtrans_order_id'] ?? '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['meja_id'] ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -406,10 +450,10 @@ function buildUrl($params) {
                                     <?= $row['created_at'] ? date('d/m H:i', strtotime($row['created_at'])) : '-' ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
+                                    <a href="detail_pesanan.php?id=<?= $row['order_id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
                                         <i class="fas fa-eye"></i> Detail
                                     </a>
-                                    <a href="proses_pesanan.php?id=<?= $row['id'] ?>" class="text-green-600 hover:text-green-900 btn-proses">
+                                    <a href="proses_pesanan.php?id=<?= $row['order_id'] ?>" class="text-green-600 hover:text-green-900 btn-proses">
                                         <i class="fas fa-check"></i> Selesai
                                     </a>
                                 </td>
@@ -490,17 +534,17 @@ function buildUrl($params) {
                     <tbody class="divide-y divide-gray-100">
                         <?php while ($row = $completed_orders->fetch_assoc()): ?>
                             <tr class="hover:bg-green-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['order_id'] ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['midtrans_order_id'] ?? '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['meja_id'] ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <?= $row['created_at'] ? date('d/m H:i', strtotime($row['created_at'])) : '-' ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
+                                    <a href="detail_pesanan.php?id=<?= $row['order_id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
                                         <i class="fas fa-eye"></i> Detail
                                     </a>
                                 </td>
@@ -581,17 +625,17 @@ function buildUrl($params) {
                     <tbody class="divide-y divide-gray-100">
                         <?php while ($row = $failed_orders->fetch_assoc()): ?>
                             <tr class="hover:bg-red-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['order_id'] ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['midtrans_order_id'] ?? '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['meja_id'] ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <?= $row['created_at'] ? date('d/m H:i', strtotime($row['created_at'])) : '-' ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
+                                    <a href="detail_pesanan.php?id=<?= $row['order_id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
                                         <i class="fas fa-eye"></i> Detail
                                     </a>
                                 </td>

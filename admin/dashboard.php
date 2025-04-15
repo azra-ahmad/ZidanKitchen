@@ -19,8 +19,8 @@ $result = $conn->query("
 $completed_orders = $conn->query("
     SELECT o.*, c.name AS customer_name 
     FROM orders o
-    LEFT JOIN meja m ON o.id_meja = m.id_meja
-    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN meja m ON o.meja_id = m.meja_id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
     WHERE o.status = 'done'
     ORDER BY o.created_at DESC
     LIMIT 5
@@ -33,8 +33,8 @@ if ($completed_orders === false) {
 $failed_orders = $conn->query("
     SELECT o.*, c.name AS customer_name 
     FROM orders o
-    LEFT JOIN meja m ON o.id_meja = m.id_meja
-    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN meja m ON o.meja_id = m.meja_id
+    LEFT JOIN customers c ON o.customer_id = c.customer_id
     WHERE o.status = 'failed'
     ORDER BY o.created_at DESC
     LIMIT 5
@@ -45,16 +45,16 @@ if ($failed_orders === false) {
 
 // Statistics
 $total_pendapatan = $conn->query("SELECT IFNULL(SUM(total_harga), 0) AS total FROM orders WHERE status='done'")->fetch_assoc()['total'];
-$total_pesanan = $conn->query("SELECT COUNT(id) AS total FROM orders")->fetch_assoc()['total'];
-$pesanan_hari_ini = $conn->query("SELECT COUNT(id) AS total FROM orders WHERE DATE(created_at) = CURDATE()")->fetch_assoc()['total'];
+$total_pesanan = $conn->query("SELECT COUNT(order_id) AS total FROM orders")->fetch_assoc()['total'];
+$pesanan_hari_ini = $conn->query("SELECT COUNT(order_id) AS total FROM orders WHERE DATE(created_at) = CURDATE()")->fetch_assoc()['total'];
 $pendapatan_hari_ini = $conn->query("SELECT IFNULL(SUM(total_harga), 0) AS total FROM orders WHERE status='done' AND DATE(created_at) = CURDATE()")->fetch_assoc()['total'];
 
 // Get recent 5 menu items
 $popular_menu = $conn->query("
-    SELECT m.nama_menu, COUNT(oi.id_menu) as jumlah 
+    SELECT m.nama_menu, COUNT(oi.menu_id) as jumlah 
     FROM order_items oi 
-    JOIN menu m ON oi.id_menu = m.id_menu 
-    GROUP BY oi.id_menu 
+    JOIN menu m ON oi.menu_id = m.menu_id 
+    GROUP BY oi.menu_id 
     ORDER BY jumlah DESC 
     LIMIT 5
 ");
@@ -85,7 +85,7 @@ for ($i = 0; $i < 4; $i++) {
 foreach ($weeks as $week) {
     // Hitung jumlah pesanan (semua status)
     $orders_query = $conn->query("
-        SELECT COUNT(id) AS count
+        SELECT COUNT(order_id) AS count
         FROM orders 
         WHERE created_at BETWEEN '{$week['start']} 00:00:00' AND '{$week['end']} 23:59:59'
     ");
@@ -105,7 +105,7 @@ foreach ($weeks as $week) {
 
 // Data for mini-sparklines in stats cards (last 7 days)
 $sparkline_orders = $conn->query("
-    SELECT DATE(created_at) AS date, COUNT(id) AS count
+    SELECT DATE(created_at) AS date, COUNT(order_id) AS count
     FROM orders 
     WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     GROUP BY DATE(created_at)
@@ -344,7 +344,10 @@ echo "<script>console.log('Revenue Data (PHP): " . json_encode($weekly_revenue_d
                     <div>
                         <p class="text-gray-500 text-sm">Menu Terpopuler</p>
                         <h3 class="text-2xl font-bold text-orange-600 truncate">
-                            <?= $popular_menu->num_rows > 0 ? htmlspecialchars($popular_menu->fetch_assoc()['nama_menu']) : '-' ?>
+                            <?php
+                            $popular_menu->data_seek(0); // Reset pointer
+                            echo $popular_menu->num_rows > 0 ? htmlspecialchars($popular_menu->fetch_assoc()['nama_menu']) : '-';
+                            ?>
                         </h3>
                     </div>
                     <div class="p-3 rounded-full bg-orange-100 text-orange-600">
@@ -431,16 +434,16 @@ echo "<script>console.log('Revenue Data (PHP): " . json_encode($weekly_revenue_d
                             $completed_orders->data_seek(0); // Reset pointer
                             while ($row = $completed_orders->fetch_assoc()): ?>
                                 <tr class="hover:bg-green-50">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['order_id'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['meja_id'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <?= date('d/m H:i', strtotime($row['created_at'])) ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
+                                        <a href="detail_pesanan.php?id=<?= $row['order_id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
                                             <i class="fas fa-eye"></i> Detail
                                         </a>
                                     </td>
@@ -488,16 +491,16 @@ echo "<script>console.log('Revenue Data (PHP): " . json_encode($weekly_revenue_d
                             $failed_orders->data_seek(0); // Reset pointer
                             while ($row = $failed_orders->fetch_assoc()): ?>
                                 <tr class="hover:bg-red-50">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['order_id'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['meja_id'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <?= date('d/m H:i', strtotime($row['created_at'])) ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <a href="detail_pesanan.php?id=<?= $row['id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
+                                        <a href="detail_pesanan.php?id=<?= $row['order_id'] ?>" class="text-orange-600 hover:text-orange-900 mr-3">
                                             <i class="fas fa-eye"></i> Detail
                                         </a>
                                     </td>

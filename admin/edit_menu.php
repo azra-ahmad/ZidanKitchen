@@ -16,11 +16,11 @@ if (!isset($conn)) {
 $error = '';
 $success = '';
 
-// Ambil data menu berdasarkan ID
+// Fetch menu data by ID
 if (isset($_GET['id'])) {
-    $id_menu = (int)$_GET['id'];
-    $stmt = $conn->prepare("SELECT * FROM menu WHERE id_menu = ?");
-    $stmt->bind_param("i", $id_menu);
+    $menu_id = (int)$_GET['id'];
+    $stmt = $conn->prepare("SELECT * FROM menu WHERE menu_id = ?");
+    $stmt->bind_param("i", $menu_id);
     $stmt->execute();
     $result = $stmt->get_result();
     $menu = $result->fetch_assoc();
@@ -32,56 +32,79 @@ if (isset($_GET['id'])) {
     }
 }
 
-// Proses update menu
+// Process menu update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update'])) {
-    $id_menu = (int)$_POST['id_menu'];
-    $nama_menu = $conn->real_escape_string($_POST['nama_menu']);
-    $harga = (int)$_POST['harga'];
-    $kategori = $conn->real_escape_string($_POST['kategori_menu']);
-
     try {
-        // Handle upload gambar jika ada
+        $menu_id = (int)$_POST['menu_id'];
+        $nama_menu = $conn->real_escape_string($_POST['nama_menu']);
+        $harga = (int)$_POST['harga'];
+        $kategori = $conn->real_escape_string($_POST['kategori_menu']);
+        $update_gambar = "";
+        $update_model = "";
+
+        // Validate required fields
+        if (empty($nama_menu)) {
+            throw new Exception("Nama menu harus diisi");
+        }
+        if ($harga <= 0) {
+            throw new Exception("Harga harus lebih dari 0");
+        }
+
+        // Handle image upload
         if (!empty($_FILES['gambar']['name'])) {
-            $gambar_name = $_FILES['gambar']['name'];
+            $gambar_name = basename($_FILES['gambar']['name']);
             $gambar_tmp = $_FILES['gambar']['tmp_name'];
             $target_dir = "../assets/images/";
-            $target_file = $target_dir . basename($gambar_name);
+            $target_file = $target_dir . $gambar_name;
             
-            // Check if image file is valid
+            // Validate image file
             $check = getimagesize($gambar_tmp);
             if ($check === false) {
                 throw new Exception("File yang diupload bukan gambar yang valid");
+            }
+            if ($_FILES['gambar']['size'] > 2 * 1024 * 1024) {
+                throw new Exception("Ukuran gambar tidak boleh melebihi 2MB");
             }
             
             if (!move_uploaded_file($gambar_tmp, $target_file)) {
                 throw new Exception("Gagal mengunggah gambar");
             }
             $update_gambar = ", gambar='$gambar_name'";
-        } else {
-            $update_gambar = "";
         }
 
-        // Handle upload model 3D jika ada
+        // Handle 3D model upload (ZIP)
         if (!empty($_FILES['model_3d']['name'])) {
-            $zip_name = $_FILES['model_3d']['name'];
             $zip_tmp = $_FILES['model_3d']['tmp_name'];
-            $target_dir = "../assets/models/";
-            $target_file = $target_dir . basename($zip_name);
-            
-            if (!move_uploaded_file($zip_tmp, $target_file)) {
-                throw new Exception("Gagal mengunggah model 3D");
+            $zip_size = $_FILES['model_3d']['size'];
+            if ($zip_size > 5 * 1024 * 1024) {
+                throw new Exception("Ukuran file ZIP tidak boleh melebihi 5MB");
             }
-            $update_model = ", model_3d='$zip_name'";
-        } else {
-            $update_model = "";
+            
+            $folderName = strtolower(str_replace(" ", "_", $nama_menu));
+            $modelDir = "../assets/models/" . $folderName . "/";
+
+            if (!file_exists($modelDir)) {
+                mkdir($modelDir, 0777, true);
+            }
+
+            $zip = new ZipArchive;
+            if ($zip->open($zip_tmp) === TRUE) {
+                $zip->extractTo($modelDir);
+                $zip->close();
+                $modelPath = "$folderName/scene.gltf";
+                $update_model = ", model_3d='$modelPath'";
+            } else {
+                throw new Exception("Gagal mengekstrak file ZIP");
+            }
         }
 
+        // Update database
         $query = "UPDATE menu SET 
                  nama_menu='$nama_menu', 
                  harga='$harga', 
                  kategori_menu='$kategori'
                  $update_gambar $update_model 
-                 WHERE id_menu=$id_menu";
+                 WHERE menu_id=$menu_id";
 
         if ($conn->query($query)) {
             $_SESSION['success'] = "Menu berhasil diperbarui!";
@@ -106,7 +129,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update'])) {
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-
 <body class="bg-gray-50 min-h-screen flex">
     <!-- Sidebar -->
     <div class="h-screen w-64 bg-gradient-to-b from-orange-600 to-yellow-900 text-white p-5 shadow-lg fixed flex flex-col">
@@ -167,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update'])) {
 
             <div class="bg-white rounded-xl shadow-md overflow-hidden">
                 <form method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
-                    <input type="hidden" name="id_menu" value="<?= $menu['id_menu'] ?>">
+                    <input type="hidden" name="menu_id" value="<?= $menu['menu_id'] ?>">
                     
                     <div class="space-y-2">
                         <label class="block text-gray-700 font-medium">Nama Menu <span class="text-red-500">*</span></label>
@@ -206,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update'])) {
                                                 <i class="fas fa-cloud-upload-alt text-3xl text-gray-400"></i>
                                                 <p class="pt-1 text-sm text-gray-600">Upload gambar baru</p>
                                             </div>
-                                            <input type="file" name="gambar" class="opacity-0 absolute">
+                                            <input type="file" name="gambar" accept="image/*" class="opacity-0 absolute">
                                         </label>
                                     </div>
                                     <p class="text-sm text-gray-500 mt-2">Format: JPG, PNG (Maksimal 2MB)</p>
@@ -232,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update'])) {
                                                 <i class="fas fa-file-archive text-3xl text-gray-400"></i>
                                                 <p class="pt-1 text-sm text-gray-600">Upload model baru</p>
                                             </div>
-                                            <input type="file" name="model_3d" accept=".zip,.glb" class="opacity-0 absolute">
+                                            <input type="file" name="model_3d" accept=".zip" class="opacity-0 absolute">
                                         </label>
                                     </div>
                                     <p class="text-sm text-gray-500 mt-2">Format: ZIP (Maksimal 5MB)</p>

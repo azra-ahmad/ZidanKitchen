@@ -8,83 +8,175 @@ if (!isset($_SESSION['admin_logged_in'])) {
 include '../config/db.php';
 date_default_timezone_set('Asia/Jakarta');
 
+if (!isset($conn)) {
+    die("Error: Koneksi database tidak tersedia.");
+}
+
 $error = '';
 $success = '';
 
-// Ambil semua menu untuk dropdown
-$menu_items = $conn->query("SELECT id_menu, nama_menu FROM menu");
+// Fetch all menu items for dropdown
+$menu_items = $conn->query("SELECT menu_id, nama_menu FROM menu");
 if (!$menu_items) {
     $error = "Gagal mengambil data menu: " . $conn->error;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $title = $_POST['title'];
-    $description = $_POST['description'];
-    $discount = $_POST['discount'];
-    $promo_type = $_POST['promo_type'];
-    $start_date = $_POST['start_date'];
-    $end_date = $_POST['end_date'];
-    // Untuk promo discount, menu_target sekarang single value, bukan array
-    $menu_target = ($promo_type === 'discount' && isset($_POST['menu_target'])) ? json_encode([$_POST['menu_target']]) : null;
-    // Handle bundle
-    $bundle_price = $_POST['bundle_price'] ?? null;
-    $bundle_items = isset($_POST['bundle_items']) ? json_encode($_POST['bundle_items']) : null;
-    $bundle_discount_type = $_POST['bundle_discount_type'] ?? null;
-    $bundle_discount_value = !empty($_POST['bundle_discount_value']) ? $_POST['bundle_discount_value'] : null;
-    
-    // Validations
-    if (strtotime($start_date) > strtotime($end_date)) {
-        $error = 'Tanggal mulai tidak boleh setelah tanggal berakhir';
-    } 
-    
-    // Validate discount percentage 
-    if ($discount > 100) {
-        $error = 'Diskon tidak boleh melebihi 100%';
-    }
-    
-    // Berjalan jika tidak ada error
-    if (empty($error)) {
-        // Sesuaikan menu_target dan bundle_items berdasarkan promo_type
-        if ($promo_type === 'discount') {
-            $bundle_items = null;
-            $bundle_discount_type = null;
-            $bundle_discount_value = null;
-        } else if ($promo_type === 'bundle') {
-            $menu_target = null;
-            $discount = 0; // Reset discount kalo bundle
+    try {
+        $title = $conn->real_escape_string($_POST['title']);
+        $description = $conn->real_escape_string($_POST['description']);
+        $promo_type = $_POST['promo_type'];
+        $start_date = $_POST['start_date'];
+        $end_date = $_POST['end_date'];
+        $discount = !empty($_POST['discount']) ? (int)$_POST['discount'] : null;
+        $bundle_discount_value = !empty($_POST['bundle_discount_value']) ? (float)$_POST['bundle_discount_value'] : null;
+        $bundle_price = !empty($_POST['bundle_price']) ? (int)$_POST['bundle_price'] : null;
+        $menu_ids = isset($_POST['menu_ids']) ? $_POST['menu_ids'] : [];
+
+        // Validations
+        if (empty($title) || empty($description) || empty($promo_type) || empty($start_date) || empty($end_date)) {
+            throw new Exception("Semua kolom wajib diisi.");
         }
+        if (strtotime($start_date) > strtotime($end_date)) {
+            throw new Exception("Tanggal mulai tidak boleh setelah tanggal berakhir.");
+        }
+        if ($promo_type === 'discount' && ($discount === null || $discount < 0 || $discount > 100)) {
+            throw new Exception("Diskon harus antara 0-100%.");
+        }
+        if ($promo_type === 'bundle' && $bundle_discount_value !== null && ($bundle_discount_value < 0 || $bundle_discount_value > 100)) {
+            throw new Exception("Nilai diskon bundle harus antara 0-100%.");
+        }
+        if ($promo_type === 'bundle' && count($menu_ids) < 2) {
+            throw new Exception("Pilih minimal 2 menu untuk promo bundle.");
+        }
+        if ($promo_type === 'discount' && empty($menu_ids)) {
+            throw new Exception("Pilih setidaknya 1 menu untuk promo diskon.");
+        }
+
         // Handle image upload
-        if ($_FILES['image']['name']) {
-            $image = $_FILES['image']['name'];
-            $target_file = "../assets/images/" . basename($image);
-            
-            // Cek apakah image file valid
+        $image = "default.png"; // Default image
+        if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
+            error_log("DEBUG: File upload info: " . print_r($_FILES['image'], true));
+            if ($_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+                switch ($_FILES['image']['error']) {
+                    case UPLOAD_ERR_INI_SIZE:
+                    case UPLOAD_ERR_FORM_SIZE:
+                        throw new Exception("Ukuran file terlalu besar (maksimal 2MB).");
+                    case UPLOAD_ERR_PARTIAL:
+                        throw new Exception("File hanya terunggah sebagian.");
+                    case UPLOAD_ERR_NO_TMP_DIR:
+                        throw new Exception("Direktori sementara untuk upload tidak ditemukan.");
+                    case UPLOAD_ERR_CANT_WRITE:
+                        throw new Exception("Gagal menulis file ke disk.");
+                    default:
+                        throw new Exception("Terjadi kesalahan saat mengunggah file: Error code " . $_FILES['image']['error']);
+                }
+            }
+
+            $allowed_types = ['image/jpeg', 'image/png', 'image/jpg'];
             $check = getimagesize($_FILES['image']['tmp_name']);
             if ($check === false) {
-                $error = 'File yang diupload bukan gambar yang valid';
-            } elseif (!move_uploaded_file($_FILES['image']['tmp_name'], $target_file)) {
-                $error = 'Gagal mengupload gambar';
+                throw new Exception("File yang diupload bukan gambar yang valid.");
             }
+            if (!in_array($check['mime'], $allowed_types)) {
+                throw new Exception("Format file harus JPG atau PNG.");
+            }
+            if ($_FILES['image']['size'] > 2 * 1024 * 1024) {
+                throw new Exception("Ukuran file terlalu besar (maksimal 2MB).");
+            }
+
+            // Sanitasi nama file asli
+            $original_name = pathinfo($_FILES['image']['name'], PATHINFO_FILENAME);
+            $image_ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+            // Ganti spasi dengan underscore, hapus karakter berbahaya
+            $sanitized_name = preg_replace('/[^a-zA-Z0-9_-]/', '_', $original_name);
+            $sanitized_name = trim($sanitized_name, '_');
+            if (empty($sanitized_name)) {
+                $sanitized_name = 'promo'; // Fallback jika nama file kosong setelah sanitasi
+            }
+
+            $target_dir = "../assets/images/";
+            $image_name = $sanitized_name . '.' . $image_ext;
+            $target_file = $target_dir . $image_name;
+
+            // Cek apakah file sudah ada, tambahkan sufiks jika perlu
+            $counter = 1;
+            while (file_exists($target_file)) {
+                $image_name = $sanitized_name . '_' . $counter . '.' . $image_ext;
+                $target_file = $target_dir . $image_name;
+                $counter++;
+            }
+
+            // Ensure upload directory exists and is writable
+            if (!file_exists($target_dir)) {
+                if (!mkdir($target_dir, 0755, true)) {
+                    throw new Exception("Gagal membuat direktori upload: " . $target_dir);
+                }
+                error_log("DEBUG: Created directory: " . $target_dir);
+            }
+            if (!is_writable($target_dir)) {
+                throw new Exception("Direktori upload tidak dapat ditulis: " . $target_dir);
+            }
+
+            // Move uploaded file
+            if (!move_uploaded_file($_FILES['image']['tmp_name'], $target_file)) {
+                error_log("DEBUG: Failed to move file to: " . $target_file);
+                throw new Exception("Gagal mengunggah gambar ke " . $target_file);
+            }
+            $image = $image_name;
+            error_log("DEBUG: Image uploaded successfully: " . $image);
         } else {
-            $image = "default.png";
+            error_log("DEBUG: No file uploaded, using default.png");
         }
-        
-        if (empty($error)) {
-            $query = $conn->prepare("INSERT INTO promos 
-                (title, description, start_date, end_date, discount, promo_type, 
-                menu_target, bundle_price, image, bundle_items, bundle_discount_type, bundle_discount_value) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            
-            $query->bind_param("ssssississss", 
-                $title, $description, $start_date, $end_date, $discount, $promo_type,
-                $menu_target, $bundle_price, $image, $bundle_items, $bundle_discount_type, $bundle_discount_value);
-    
-            if ($query->execute()) {
-                $success = 'Promo berhasil ditambahkan!';
-            } else {
-                $error = 'Gagal menambahkan promo: ' . $conn->error;
+
+        // Start transaction
+        $conn->begin_transaction();
+
+        $stmt = $conn->prepare("
+            INSERT INTO promos (title, description, promo_type, discount, bundle_price, bundle_discount_value, image, start_date, end_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->bind_param(
+            "sssiidsss",
+            $title,
+            $description,
+            $promo_type,
+            $discount,
+            $bundle_price,
+            $bundle_discount_value,
+            $image,
+            $start_date,
+            $end_date
+        );
+        if (!$stmt->execute()) {
+            throw new Exception("Gagal menambahkan promo: " . $stmt->error);
+        }
+        $promo_id = $conn->insert_id;
+        $stmt->close();
+        error_log("DEBUG: Promo inserted with ID: " . $promo_id);
+
+        // Insert into promo_menu table
+        if (!empty($menu_ids)) {
+            $stmt = $conn->prepare("INSERT INTO promo_menu (promo_id, menu_id) VALUES (?, ?)");
+            foreach ($menu_ids as $menu_id) {
+                $menu_id = (int)$menu_id;
+                $stmt->bind_param("ii", $promo_id, $menu_id);
+                if (!$stmt->execute()) {
+                    throw new Exception("Gagal menambahkan menu ke promo: " . $stmt->error);
+                }
             }
+            $stmt->close();
         }
+
+        // Commit transaction
+        $conn->commit();
+        $_SESSION['success'] = "Promo berhasil ditambahkan!";
+        header("Location: promos.php");
+        exit;
+    } catch (Exception $e) {
+        $conn->rollback();
+        $error = $e->getMessage();
+        error_log("ERROR: " . $e->getMessage());
     }
 }
 ?>
@@ -100,6 +192,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <style>
+        .select2-container--default .select2-selection--multiple .select2-selection__choice {
+            background-color: #f97316;
+            border: 1px solid #f97316;
+            color: white;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+            color: white;
+        }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex">
     <!-- Sidebar -->
@@ -155,14 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">
                     <div class="flex items-center">
                         <i class="fas fa-exclamation-circle mr-2"></i>
-                        <p><?php echo $error; ?></p>
-                    </div>
-                </div>
-            <?php elseif ($success): ?>
-                <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4 rounded">
-                    <div class="flex items-center">
-                        <i class="fas fa-check-circle mr-2"></i>
-                        <p><?php echo $success; ?></p>
+                        <p><?= htmlspecialchars($error) ?></p>
                     </div>
                 </div>
             <?php endif; ?>
@@ -209,45 +304,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <p class="text-sm text-gray-500">Masukkan nilai antara 0-100</p>
                     </div>
-                    <div class="mb-4" id="menu-target-field" style="display: none;">
-                        <label class="block text-gray-700 font-medium mb-2">Menu yang Di-diskon <span class="text-red-500">*</span></label>
-                        <select name="menu_target" class="menu-select w-full px-4 py-2 border rounded-lg">
-                            <option value="">Pilih Menu</option>
+                    <div class="mb-4 menu-select-field">
+                        <label class="block text-gray-700 font-medium mb-2">Menu Target <span class="text-red-500">*</span></label>
+                        <select name="menu_ids[]" multiple class="menu-select w-full px-4 py-2 border rounded-lg">
                             <?php while ($item = $menu_items->fetch_assoc()): ?>
-                                <option value="<?= $item['id_menu'] ?>"><?= htmlspecialchars($item['nama_menu']) ?></option>
-                            <?php endwhile; $menu_items->data_seek(0); ?>
+                                <option value="<?= $item['menu_id'] ?>"><?= htmlspecialchars($item['nama_menu']) ?></option>
+                            <?php endwhile; ?>
                         </select>
-                        <p class="text-sm text-gray-500 mt-1">Pilih satu menu yang akan mendapatkan diskon</p>
+                        <p class="text-sm text-gray-500 mt-1">Pilih satu menu untuk diskon, minimal dua untuk bundle</p>
                     </div>
                 </div>
 
-                <!-- Bundle Fields (hidden by default) -->
+                <!-- Bundle Fields -->
                 <div id="bundle-fields" style="display: none;" class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 font-medium">Item Bundle <span class="text-red-500">*</span></label>
-                        <select name="bundle_items[]" multiple class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-300 focus:border-orange-300">
-                            <?php while ($item = $menu_items->fetch_assoc()): ?>
-                                <option value="<?= $item['id_menu'] ?>"><?= htmlspecialchars($item['nama_menu']) ?></option>
-                            <?php endwhile; ?>
-                        </select>
-                        <p class="text-sm text-gray-500">Pilih beberapa item (gunakan Ctrl/Cmd + klik untuk memilih multiple)</p>
-                    </div>
-                    
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-gray-700 font-medium">Jenis Diskon Bundle <span class="text-red-500">*</span></label>
-                            <select name="bundle_discount_type" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-300 focus:border-orange-300">
-                                <option value="percentage">Persentase</option>
-                                <option value="fixed">Nominal Tetap</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 font-medium">Nilai Diskon <span class="text-red-500">*</span></label>
+                            <label class="block text-gray-700 font-medium">Nilai Diskon Bundle (%)</label>
                             <div class="relative">
-                                <input type="number" name="bundle_discount_value" min="0" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-300 focus:border-orange-300">
-                                <span id="discount-suffix" class="absolute right-3 top-2 text-gray-400">%</span>
+                                <input type="number" name="bundle_discount_value" min="0" max="100" step="0.01" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-300 focus:border-orange-300">
+                                <span class="absolute right-3 top-2 text-gray-400">%</span>
                             </div>
+                            <p class="text-sm text-gray-500">Masukkan nilai antara 0-100 (kosongkan jika tidak ada diskon)</p>
                         </div>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium">Harga Bundle (Opsional)</label>
+                        <input type="number" name="bundle_price" min="0" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-300 focus:border-orange-300">
+                        <p class="text-sm text-gray-500">Masukkan harga khusus untuk bundle jika ada</p>
                     </div>
                 </div>
 
@@ -256,7 +339,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label class="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg hover:bg-gray-50 hover:border-orange-300 cursor-pointer transition">
                         <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-1"></i>
                         <p class="text-sm text-gray-600">Upload gambar promo</p>
-                        <input type="file" name="image" class="hidden">
+                        <input type="file" name="image" accept="image/*" class="hidden">
                     </label>
                     <p class="text-sm text-gray-500">Format: JPG, PNG (maks. 2MB)</p>
                 </div>
@@ -275,182 +358,120 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Elemen utama
             const form = document.querySelector('form');
             const promoTypeSelect = document.querySelector('select[name="promo_type"]');
             const bundleFields = document.getElementById('bundle-fields');
             const regularDiscountField = document.querySelector('.regular-discount-field');
-            const menuTargetField = document.getElementById('menu-target-field');
-
-            // Elemen file upload
+            const menuSelectField = document.querySelector('.menu-select-field');
+            const menuSelect = document.querySelector('.menu-select');
             const fileInput = document.querySelector('input[type="file"]');
             const fileLabel = fileInput?.closest('label');
             const fileText = fileLabel?.querySelector('p');
-            
-            // Inisialisasi Select2 untuk bundle items
-            function initSelect2(selector, placeholder) {
-                $(selector).select2({
-                    placeholder: placeholder,
-                    width: '100%',
-                    closeOnSelect: false
-                });
-            }
 
-            // Toggle visibility field berdasarkan jenis promo
+            // Initialize Select2
+            $(menuSelect).select2({
+                placeholder: "Pilih menu target",
+                width: '100%',
+                closeOnSelect: false
+            });
+
+            // Toggle fields based on promo type
             function togglePromoFields() {
                 if (promoTypeSelect.value === 'bundle') {
                     bundleFields.style.display = 'block';
                     regularDiscountField.style.display = 'none';
-                    menuTargetField.style.display = 'none';
-                    // Inisialisasi Select2 hanya sekali
-                    if (!select2Initialized && $('select[name="bundle_items[]"]').length) {
-                        $('select[name="bundle_items[]"]').select2({
-                            placeholder: "Pilih item bundle (minimal 2)",
-                            width: '100%',
-                            closeOnSelect: false
-                        });
-                        select2Initialized = true;
-                    }
+                    menuSelectField.querySelector('label').textContent = 'Menu Bundle';
+                    $(menuSelect).select2({ placeholder: "Pilih minimal 2 menu untuk bundle" });
                 } else if (promoTypeSelect.value === 'discount') {
                     bundleFields.style.display = 'none';
                     regularDiscountField.style.display = 'block';
-                    menuTargetField.style.display = 'block';
+                    menuSelectField.querySelector('label').textContent = 'Menu Target';
+                    $(menuSelect).select2({ placeholder: "Pilih satu menu untuk diskon" });
                 } else {
-                    // Default state (belum memilih jenis promo)
                     bundleFields.style.display = 'none';
                     regularDiscountField.style.display = 'none';
-                    menuTargetField.style.display = 'none'; // Sembunyiin kalo belum pilih
+                    menuSelectField.style.display = 'none';
                 }
             }
 
-            // Handle perubahan jenis diskon bundle
-            function handleBundleDiscountTypeChange() {
-                const bundleDiscountType = document.querySelector('select[name="bundle_discount_type"]');
-                const discountSuffix = document.getElementById('discount-suffix');
-                const bundleDiscountValue = document.querySelector('input[name="bundle_discount_value"]');
-                
-                if (bundleDiscountType && discountSuffix) {
-                    const isPercentage = bundleDiscountType.value === 'percentage';
-                    discountSuffix.textContent = isPercentage ? '%' : 'Rp';
-                    
-                    // Update placeholder dan validasi
-                    if (bundleDiscountValue) {
-                        bundleDiscountValue.placeholder = isPercentage ? '0-100' : 'Jumlah diskon';
-                        bundleDiscountValue.min = isPercentage ? '0' : '1';
-                        bundleDiscountValue.max = isPercentage ? '100' : '';
-                    }
-                }
-            }
-
-            // Validasi nilai diskon bundle
+            // Validate bundle discount
             function validateBundleDiscount() {
-                const bundleDiscountType = document.querySelector('select[name="bundle_discount_type"]');
                 const bundleDiscountValue = document.querySelector('input[name="bundle_discount_value"]');
-                
-                if (!bundleDiscountType || !bundleDiscountValue) return true;
-                
-                const value = parseFloat(bundleDiscountValue.value);
-                const isPercentage = bundleDiscountType.value === 'percentage';
-                
-                if (isNaN(value)) {
-                    bundleDiscountValue.setCustomValidity('Masukkan nilai diskon yang valid');
-                    return false;
-                }
-                
-                if (isPercentage) {
-                    if (value < 0 || value > 100) {
-                        bundleDiscountValue.setCustomValidity('Diskon harus antara 0-100%');
+                if (bundleDiscountValue) {
+                    const value = parseFloat(bundleDiscountValue.value);
+                    if (bundleDiscountValue.value !== '' && (isNaN(value) || value < 0 || value > 100)) {
+                        bundleDiscountValue.setCustomValidity('Diskon bundle harus antara 0-100%');
                         return false;
                     }
-                } else {
-                    if (value <= 0) {
-                        bundleDiscountValue.setCustomValidity('Diskon harus lebih dari 0');
-                        return false;
-                    }
+                    bundleDiscountValue.setCustomValidity('');
                 }
-                
-                bundleDiscountValue.setCustomValidity('');
                 return true;
             }
 
-            // Validasi form sebelum submit
+            // Validate form
             function validateForm(e) {
                 let isValid = true;
                 const errorMessages = [];
-                
-                // Validasi dasar
                 if (!form.checkValidity()) {
                     form.reportValidity();
                     return false;
                 }
-                
-                // Validasi tanggal
                 const startDate = new Date(document.querySelector('input[name="start_date"]').value);
                 const endDate = new Date(document.querySelector('input[name="end_date"]').value);
-                
                 if (startDate > endDate) {
                     errorMessages.push('Tanggal mulai tidak boleh setelah tanggal berakhir');
                     isValid = false;
                 }
-
-                // Validasi berdasarkan jenis promo
                 if (promoTypeSelect.value === 'discount') {
-                    // Validasi diskon reguler
                     const discount = document.querySelector('input[name="discount"]');
-                    if (discount.value && (discount.value < 0 || discount.value > 100)) {
+                    if (!discount.value || discount.value < 0 || discount.value > 100) {
                         errorMessages.push('Diskon harus antara 0-100%');
                         isValid = false;
                     }
-                    const selectedMenu = document.querySelector('select[name="menu_target"]').value;
-                    if (!selectedMenu) {
-                        errorMessages.push('Pilih satu menu untuk diskon');
+                    const selectedMenus = $(menuSelect).val();
+                    if (!selectedMenus || selectedMenus.length === 0) {
+                        errorMessages.push('Pilih setidaknya satu menu untuk diskon');
                         isValid = false;
                     }
                 } else if (promoTypeSelect.value === 'bundle') {
-                    // Validasi bundle items
-                    const bundleItems = document.querySelector('select[name="bundle_items[]"]');
-                    if (!bundleItems || bundleItems.selectedOptions.length < 2) {
-                        errorMessages.push('Pilih minimal 2 item untuk promo bundle');
+                    const selectedMenus = $(menuSelect).val();
+                    if (!selectedMenus || selectedMenus.length < 2) {
+                        errorMessages.push('Pilih minimal 2 menu untuk bundle');
                         isValid = false;
                     }
-                    
-                    // Validasi diskon bundle
                     if (!validateBundleDiscount()) {
                         errorMessages.push('Masukkan nilai diskon bundle yang valid');
                         isValid = false;
                     }
+                    const bundlePrice = document.querySelector('input[name="bundle_price"]');
+                    if (bundlePrice.value && bundlePrice.value < 0) {
+                        errorMessages.push('Harga bundle tidak boleh negatif');
+                        isValid = false;
+                    }
                 }
-
-                // Validasi file upload
                 if (fileInput && fileInput.files.length > 0) {
                     const file = fileInput.files[0];
                     const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-                    const maxSize = 2 * 1024 * 1024; // 2MB
-                    
+                    const maxSize = 2 * 1024 * 1024;
                     if (!validTypes.includes(file.type)) {
                         errorMessages.push('Format file harus JPG atau PNG');
                         isValid = false;
                     }
-                    
                     if (file.size > maxSize) {
                         errorMessages.push('Ukuran file terlalu besar (maksimal 2MB)');
                         isValid = false;
                     }
                 }
-
-                // Tampilkan error jika ada
                 if (!isValid) {
                     e.preventDefault();
                     showErrorMessages(errorMessages);
                     return false;
                 }
-                
                 return true;
             }
 
-            // Tampilkan pesan error
+            // Show error messages
             function showErrorMessages(messages) {
-                // Buat atau update error container
                 let errorContainer = document.getElementById('client-side-errors');
                 if (!errorContainer) {
                     errorContainer = document.createElement('div');
@@ -458,8 +479,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     errorContainer.className = 'bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded';
                     form.parentNode.insertBefore(errorContainer, form);
                 }
-                
-                // Isi pesan error
                 errorContainer.innerHTML = `
                     <div class="flex items-center">
                         <i class="fas fa-exclamation-circle mr-2"></i>
@@ -468,72 +487,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                 `;
-                
-                // Scroll ke error
                 errorContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
-            // Update nama file yang diupload
+            // Update file name
             function updateFileName() {
                 if (fileInput && fileText) {
                     const fileName = fileInput.files[0]?.name || 'Upload gambar promo';
                     fileText.textContent = fileName;
-                    fileText.className = 'text-sm text-orange-600 font-medium';
+                    fileText.className = fileInput.files[0] ? 'text-sm text-orange-600 font-medium' : 'text-sm text-gray-600';
                 }
             }
 
-            // Inisialisasi event listeners
-            function initEventListeners() {
-                // Toggle fields berdasarkan jenis promo
-                if (promoTypeSelect) {
-                    promoTypeSelect.addEventListener('change', togglePromoFields);
-                    togglePromoFields(); // Jalankan sekali saat load
-                }
-
-                // Handle perubahan jenis diskon bundle
-                const bundleDiscountType = document.querySelector('select[name="bundle_discount_type"]');
-                if (bundleDiscountType) {
-                    bundleDiscountType.addEventListener('change', handleBundleDiscountTypeChange);
-                    handleBundleDiscountTypeChange(); // Jalankan sekali saat load
-                }
-
-                // Validasi real-time untuk diskon bundle
-                const bundleDiscountValue = document.querySelector('input[name="bundle_discount_value"]');
-                if (bundleDiscountValue) {
-                    bundleDiscountValue.addEventListener('input', validateBundleDiscount);
-                }
-
-                // Validasi real-time untuk diskon reguler
-                const discountInput = document.querySelector('input[name="discount"]');
-                if (discountInput) {
-                    discountInput.addEventListener('input', function() {
-                        if (this.value > 100) {
-                            this.setCustomValidity('Diskon tidak boleh melebihi 100%');
-                        } else {
-                            this.setCustomValidity('');
-                        }
-                    });
-                }
-
-                // Form submission
-                if (form) {
-                    form.addEventListener('submit', validateForm);
-                }
-
-                // File upload
-                if (fileInput) {
-                    fileInput.addEventListener('change', updateFileName);
-                }
-
-                // Inisialisasi Select2 untuk menu target
-                $('.menu-select').select2({
-                    placeholder: "Pilih menu target",
-                    width: '100%'
-                });
-            }
-
-            // Jalankan inisialisasi
-            initEventListeners();
+            // Initialize event listeners
+            promoTypeSelect.addEventListener('change', togglePromoFields);
+            document.querySelector('input[name="bundle_discount_value"]').addEventListener('input', validateBundleDiscount);
+            document.querySelector('input[name="discount"]').addEventListener('input', function() {
+                this.setCustomValidity(this.value > 100 ? 'Diskon tidak boleh melebihi 100%' : '');
+            });
+            form.addEventListener('submit', validateForm);
+            fileInput.addEventListener('change', updateFileName);
+            togglePromoFields();
         });
     </script>
 </body>

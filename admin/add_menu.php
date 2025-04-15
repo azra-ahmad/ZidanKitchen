@@ -42,10 +42,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $image = basename($_FILES['image']['name']);
             $targetFile = $targetDir . "images/" . $image;
             
-            // Check if image file is valid
+            // Validate image file
             $check = getimagesize($_FILES['image']['tmp_name']);
             if ($check === false) {
                 throw new Exception("File yang diupload bukan gambar yang valid");
+            }
+            if ($_FILES['image']['size'] > 2 * 1024 * 1024) {
+                throw new Exception("Ukuran gambar tidak boleh melebihi 2MB");
             }
             
             if (!move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {
@@ -55,9 +58,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             throw new Exception("Gambar menu harus diupload");
         }
 
-        // Upload & Ekstrak Model 3D (ZIP)
+        // Upload & Extract 3D Model (ZIP)
         if (!empty($_FILES['model_zip']['name'])) {
             $zipFile = $_FILES['model_zip']['tmp_name'];
+            $zipSize = $_FILES['model_zip']['size'];
+            if ($zipSize > 5 * 1024 * 1024) {
+                throw new Exception("Ukuran file ZIP tidak boleh melebihi 5MB");
+            }
+            
             $folderName = strtolower(str_replace(" ", "_", $name));
             $modelDir = $targetDir . "models/" . $folderName . "/";
 
@@ -75,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
 
-        // Simpan ke Database
+        // Save to Database
         $stmt = $conn->prepare("INSERT INTO menu (nama_menu, harga, kategori_menu, gambar, model_3d) VALUES (?, ?, ?, ?, ?)");
         $stmt->bind_param("sdsss", $name, $harga, $kategori_menu, $image, $modelPath);
 
@@ -94,7 +102,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -112,7 +119,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     </style>
 </head>
-
 <body class="bg-gray-50 min-h-screen flex">
     <!-- Sidebar -->
     <div class="h-screen w-64 bg-gradient-to-b from-orange-600 to-yellow-900 text-white p-5 shadow-lg fixed flex flex-col">
@@ -206,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         <i class="fas fa-cloud-upload-alt text-3xl text-gray-400"></i>
                                         <p class="pt-1 text-sm text-gray-600">Upload gambar menu</p>
                                     </div>
-                                    <input type="file" name="image" class="opacity-0 absolute" required>
+                                    <input type="file" name="image" accept="image/*" class="opacity-0 absolute" required>
                                 </label>
                             </div>
                             <p class="text-sm text-gray-500">Format: JPG, PNG (Maksimal 2MB)</p>

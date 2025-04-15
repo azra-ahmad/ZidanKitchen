@@ -28,7 +28,6 @@ function getActivePromos($conn) {
                 'discount' => $row['discount'],
                 'promo_type' => $row['promo_type'],
                 'bundle_price' => $row['bundle_price'],
-                'bundle_discount_type' => $row['bundle_discount_type'],
                 'bundle_discount_value' => $row['bundle_discount_value'],
                 'image' => $row['image'],
                 'start_date' => $row['start_date'],
@@ -100,13 +99,9 @@ function applyBundleDiscount($cart, $menu_data, $promo) {
         }
     }
 
-    // Hitung diskon berdasarkan bundle_discount_type
-    if ($promo['bundle_discount_type'] === 'percentage') {
-        $discount_value = $promo['bundle_discount_value'];
-        $discount_amount = $total_original * ($discount_value / 100);
-    } else { // fixed
-        $discount_amount = $promo['bundle_discount_value'];
-    }
+    // Hitung diskon (selalu persentase)
+    $discount_value = $promo['bundle_discount_value'] ?? 0; // Fallback ke 0 jika null
+    $discount_amount = $total_original * ($discount_value / 100);
 
     return $discount_amount;
 }

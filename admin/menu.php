@@ -149,9 +149,7 @@ function buildUrl($params) {
                 class="px-4 py-2 rounded-lg <?= $category == 'all' ? 'bg-orange-500 text-white' : 'bg-white text-orange-600 border border-orange-200 hover:bg-orange-50' ?> font-medium">
                     Semua
                 </a>
-                <?php
-                $categories = $conn->query("SELECT DISTINCT kategori_menu FROM menu");
-                while ($cat = $categories->fetch_assoc()): ?>
+                <?php while ($cat = $categories->fetch_assoc()): ?>
                     <a href="<?= buildUrl(['category' => $cat['kategori_menu'], 'page' => 1]) ?>" 
                     class="px-4 py-2 rounded-lg <?= $category == $cat['kategori_menu'] ? 'bg-orange-500 text-white' : 'bg-white text-orange-600 border border-orange-200 hover:bg-orange-50' ?> font-medium category-badge">
                         <?= htmlspecialchars(ucfirst($cat['kategori_menu'])) ?>
@@ -185,9 +183,6 @@ function buildUrl($params) {
                         <tr class="hover:bg-orange-50 transition-colors">
                             <td class="px-6 py-4">
                                 <div class="font-medium text-gray-800"><?= htmlspecialchars($row['nama_menu']) ?></div>
-                                <?php if (!empty($row['deskripsi'])): ?>
-                                    <div class="text-sm text-gray-500 mt-1"><?= htmlspecialchars($row['deskripsi']) ?></div>
-                                <?php endif; ?>
                             </td>
                             <td class="px-6 py-4 text-right font-medium">
                                 Rp<?= number_format($row['harga'], 0, ',', '.') ?>
@@ -222,12 +217,12 @@ function buildUrl($params) {
                             </td>
                             <td class="px-6 py-4">
                                 <div class="flex justify-center space-x-2">
-                                    <a href="edit_menu.php?id=<?= $row['id_menu'] ?>" 
+                                    <a href="edit_menu.php?id=<?= $row['menu_id'] ?>" 
                                        class="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition-colors" 
                                        title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="delete_menu.php?id=<?= $row['id_menu'] ?>" 
+                                    <a href="delete_menu.php?id=<?= $row['menu_id'] ?>" 
                                        class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors" 
                                        title="Hapus"
                                        onclick="return confirm('Apakah Anda yakin ingin menghapus menu ini?')">
@@ -256,7 +251,6 @@ function buildUrl($params) {
                     <?php endif; ?>
                     
                     <?php 
-                    // Show pagination numbers
                     $startPage = max(1, $page - 2);
                     $endPage = min($totalPages, $page + 2);
                     
