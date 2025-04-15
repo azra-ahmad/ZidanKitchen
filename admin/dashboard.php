@@ -65,8 +65,7 @@ $week_labels = [];
 $week_date_ranges = [];
 $weekly_orders_data = [];
 $weekly_revenue_data = [];
-$start_date = new DateTime();
-$start_date->modify('-27 days'); // 4 weeks (28 days) including today
+$start_date = new DateTime('2025-03-19'); // Mulai dari 19 Maret 2025
 for ($i = 0; $i < 4; $i++) {
     $week_start = clone $start_date;
     $week_start->modify("+$i weeks");
@@ -83,41 +82,25 @@ for ($i = 0; $i < 4; $i++) {
 }
 
 // Query orders and revenue for the last 4 weeks
-$weekly_orders_query = $conn->query("
-    SELECT 
-        WEEK(created_at, 1) AS week_num, 
-        COUNT(id) AS count,
-        SUM(CASE WHEN status='done' THEN total_harga ELSE 0 END) AS revenue
-    FROM orders 
-    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 28 DAY)
-    GROUP BY WEEK(created_at, 1), YEAR(created_at)
-    ORDER BY YEAR(created_at), WEEK(created_at, 1)
-");
-$orders_by_week = [];
-while ($row = $weekly_orders_query->fetch_assoc()) {
-    $orders_by_week[$row['week_num']] = [
-        'count' => $row['count'],
-        'revenue' => $row['revenue']
-    ];
-}
+foreach ($weeks as $week) {
+    // Hitung jumlah pesanan (semua status)
+    $orders_query = $conn->query("
+        SELECT COUNT(id) AS count
+        FROM orders 
+        WHERE created_at BETWEEN '{$week['start']} 00:00:00' AND '{$week['end']} 23:59:59'
+    ");
+    $orders_count = $orders_query->fetch_assoc()['count'];
+    $weekly_orders_data[] = $orders_count;
 
-// Merge with weeks array to ensure all 4 weeks are represented
-foreach ($weeks as $index => $week) {
-    $week_found = false;
-    foreach ($orders_by_week as $week_num => $data) {
-        $week_start = new DateTime($week['start']);
-        $week_num_from_date = $week_start->format('W');
-        if ($week_num == $week_num_from_date) {
-            $weekly_orders_data[] = $data['count'];
-            $weekly_revenue_data[] = $data['revenue'];
-            $week_found = true;
-            break;
-        }
-    }
-    if (!$week_found) {
-        $weekly_orders_data[] = 0;
-        $weekly_revenue_data[] = 0;
-    }
+    // Hitung pendapatan (status done)
+    $revenue_query = $conn->query("
+        SELECT IFNULL(SUM(total_harga), 0) AS revenue
+        FROM orders 
+        WHERE status = 'done'
+        AND created_at BETWEEN '{$week['start']} 00:00:00' AND '{$week['end']} 23:59:59'
+    ");
+    $revenue = $revenue_query->fetch_assoc()['revenue'];
+    $weekly_revenue_data[] = $revenue;
 }
 
 // Data for mini-sparklines in stats cards (last 7 days)
@@ -152,6 +135,10 @@ while ($row = $sparkline_revenue->fetch_assoc()) {
         $sparkline_revenue_data[$index] = $row['total'];
     }
 }
+
+// Debugging: Log data ke console
+echo "<script>console.log('Orders Data (PHP): " . json_encode($weekly_orders_data) . "');</script>";
+echo "<script>console.log('Revenue Data (PHP): " . json_encode($weekly_revenue_data) . "');</script>";
 ?>
 
 <!DOCTYPE html>
@@ -559,9 +546,15 @@ while ($row = $sparkline_revenue->fetch_assoc()) {
         const ordersData = <?= json_encode($weekly_orders_data) ?>;
         const revenueData = <?= json_encode($weekly_revenue_data) ?>;
 
+        // Debugging: Log data yang dipake grafik
+        console.log('Orders Data (JS):', ordersData);
+        console.log('Revenue Data (JS):', revenueData);
+
         // Orders Chart
         const ordersCtx = document.getElementById('ordersChart').getContext('2d');
-        new Chart(ordersCtx, {
+        let ordersChart = new Chart(ordersCtx, { type: 'line', data: {}, options: {} }); // Placeholder
+        ordersChart.destroy(); // Destroy grafik lama
+        ordersChart = new Chart(ordersCtx, {
             type: 'line',
             data: {
                 labels: weeks,
@@ -618,7 +611,9 @@ while ($row = $sparkline_revenue->fetch_assoc()) {
 
         // Revenue Chart
         const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-        new Chart(revenueCtx, {
+        let revenueChart = new Chart(revenueCtx, { type: 'line', data: {}, options: {} }); // Placeholder
+        revenueChart.destroy(); // Destroy grafik lama
+        revenueChart = new Chart(revenueCtx, {
             type: 'line',
             data: {
                 labels: weeks,
