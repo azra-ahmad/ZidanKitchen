@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 4. Set session
     $_SESSION['customer_id'] = $customer_id;
-    $_SESSION['id_meja'] = $table_id;
+    $_SESSION['meja_id'] = $table_id;
     
     header("Location: menu.php");
     exit();
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $table_id = isset($_GET['table']) ? intval($_GET['table']) : die("Parameter meja tidak valid");
 
 // Cek apakah meja valid
-$table_exists = $conn->query("SELECT 1 FROM meja WHERE id_meja = $table_id")->num_rows > 0;
+$table_exists = $conn->query("SELECT 1 FROM meja WHERE meja_id = $table_id")->num_rows > 0;
 if (!$table_exists) {
     die("Meja $table_id tidak ditemukan");
 }

@@ -2,7 +2,7 @@
 $host = "localhost";
 $user = "root"; 
 $pass = "";
-$dbname = "zidankitchen";
+$dbname = "zidankitchenfix";
 
 $conn = new mysqli($host, $user, $pass, $dbname);
 

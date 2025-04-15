@@ -3,8 +3,8 @@ session_start();
 include '../config/db.php';
 include '../config/functions.php';
 
-if (!isset($_SESSION['id_meja']) || !isset($_SESSION['customer_id'])) {
-    header("Location: register.php?table=" . ($_SESSION['id_meja'] ?? ''));
+if (!isset($_SESSION['meja_id']) || !isset($_SESSION['customer_id'])) {
+    header("Location: register.php?table=" . ($_SESSION['meja_id'] ?? ''));
     exit;
 }
 
@@ -20,7 +20,7 @@ $menu_query = "SELECT * FROM menu ORDER BY nama_menu";
 $menu_result = $conn->query($menu_query);
 $menu_data = [];
 while ($row = $menu_result->fetch_assoc()) {
-    $menu_data[$row['id_menu']] = $row;
+    $menu_data[$row['menu_id']] = $row;
 }
 
 // Ambil promo aktif
@@ -30,14 +30,14 @@ $promos = getActivePromos($conn);
 $active_promos = [];
 foreach ($promos as $promo) {
     $promo['menu_names'] = [];
-    if ($promo['promo_type'] === 'discount' && !empty($promo['menu_target'])) {
-        foreach ($promo['menu_target'] as $menu_id) {
+    if ($promo['promo_type'] === 'discount' && !empty($promo['menu_ids'])) {
+        foreach ($promo['menu_ids'] as $menu_id) {
             if (isset($menu_data[$menu_id])) {
                 $promo['menu_names'][] = $menu_data[$menu_id]['nama_menu'];
             }
         }
-    } elseif ($promo['promo_type'] === 'bundle' && !empty($promo['bundle_items'])) {
-        foreach ($promo['bundle_items'] as $menu_id) {
+    } elseif ($promo['promo_type'] === 'bundle' && !empty($promo['menu_ids'])) {
+        foreach ($promo['menu_ids'] as $menu_id) {
             if (isset($menu_data[$menu_id])) {
                 $promo['menu_names'][] = $menu_data[$menu_id]['nama_menu'];
             }
@@ -49,8 +49,8 @@ foreach ($promos as $promo) {
 // Hitung harga promo untuk setiap menu
 $menus = [];
 foreach ($menu_data as $menu) {
-    $menu['harga_promo'] = getItemPrice($menu['id_menu'], $_SESSION['keranjang'] ?? [], $menu_data, $promos);
-    $menu['discount'] = getMenuDiscount($menu['id_menu'], $promos);
+    $menu['harga_promo'] = getItemPrice($menu['menu_id'], $_SESSION['keranjang'] ?? [], $menu_data, $promos);
+    $menu['discount'] = getMenuDiscount($menu['menu_id'], $promos);
     $menu['promo_type'] = null;
     $menu['promo_title'] = null;
     $menu['promo_message'] = null;
@@ -59,7 +59,7 @@ foreach ($menu_data as $menu) {
     if ($menu['discount'] > 0) {
         $menu['promo_type'] = 'discount';
         foreach ($promos as $promo) {
-            if ($promo['promo_type'] === 'discount' && in_array($menu['id_menu'], $promo['menu_target'])) {
+            if ($promo['promo_type'] === 'discount' && in_array($menu['menu_id'], $promo['menu_ids'])) {
                 $menu['promo_title'] = $promo['title'];
                 break;
             }
@@ -68,21 +68,21 @@ foreach ($menu_data as $menu) {
 
     // Cek promo bundle (tampilkan meskipun belum lengkap)
     foreach ($promos as $promo) {
-        if ($promo['promo_type'] === 'bundle' && in_array($menu['id_menu'], $promo['bundle_items'])) {
+        if ($promo['promo_type'] === 'bundle' && in_array($menu['menu_id'], $promo['menu_ids'])) {
             $menu['promo_type'] = checkBundlePromo($_SESSION['keranjang'] ?? [], $promo) ? 'bundle' : 'bundle_incomplete';
             $menu['promo_title'] = $promo['title'];
             $menu['bundle_discount'] = $promo['bundle_discount_value'];
             // Cek item yang kurang untuk bundle
             $missing_items = [];
-            foreach ($promo['bundle_items'] as $bundle_item_id) {
+            foreach ($promo['menu_ids'] as $bundle_item_id) {
                 $found = false;
                 foreach ($_SESSION['keranjang'] ?? [] as $cart_item) {
-                    if ($cart_item['id_menu'] == $bundle_item_id && $cart_item['jumlah'] > 0) {
+                    if ($cart_item['menu_id'] == $bundle_item_id && $cart_item['jumlah'] > 0) {
                         $found = true;
                         break;
                     }
                 }
-                if (!$found && $bundle_item_id != $menu['id_menu']) {
+                if (!$found && $bundle_item_id != $menu['menu_id']) {
                     $missing_items[] = $menu_data[$bundle_item_id]['nama_menu'];
                 }
             }
@@ -123,6 +123,16 @@ foreach ($menu_data as $menu) {
                 setTimeout(() => document.body.removeChild(toast), 400);
             }, 2500);
         }
+
+        <?php if (isset($_GET['payment'])): ?>
+            <?php if ($_GET['payment'] == 'success'): ?>
+                showToast("Pembayaran berhasil! Makanan sedang dimasak.");
+            <?php elseif ($_GET['payment'] == 'pending'): ?>
+                showToast("Pembayaran sedang diproses. Silakan tunggu konfirmasi.");
+            <?php elseif ($_GET['payment'] == 'error'): ?>
+                showToast("Pembayaran gagal. Silakan coba lagi.");
+            <?php endif; ?>
+        <?php endif; ?>
     </script>
 
     <!-- Promo Pop-Up -->
@@ -155,15 +165,7 @@ foreach ($menu_data as $menu) {
                     Zidan<span class="text-blue-600">Kitchen</span>
                 </h1>
             </div>
-            <div class="flex items-center space-x-2">
-                <a href="keranjang.php" class="relative group">
-                    <div class="p-2 rounded-full bg-white/50 hover:bg-white transition-all duration-300 shadow-md group-hover:shadow-lg">
-                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
-                        </svg>
-                    </div>
-                </a>
-            </div>
+            <!-- Hapus icon cart dari header -->
         </div>
     </header>
 
@@ -260,7 +262,7 @@ foreach ($menu_data as $menu) {
                             <?php endif; ?>
                         </div>
                         <form method="POST" action="add_to_cart.php">
-                            <input type="hidden" name="id_menu" value="<?php echo $menu['id_menu']; ?>">
+                            <input type="hidden" name="menu_id" value="<?php echo $menu['menu_id']; ?>">
                             <input type="hidden" name="nama_menu" value="<?php echo htmlspecialchars($menu['nama_menu']); ?>">
                             <input type="hidden" name="harga" value="<?php echo $menu['harga']; ?>">
                             <input type="hidden" name="harga_promo" value="<?php echo isset($menu['harga_promo']) ? $menu['harga_promo'] : $menu['harga']; ?>">
@@ -291,11 +293,11 @@ foreach ($menu_data as $menu) {
                 </svg>
                 <span class="text-xs mt-1">Menu</span>
             </a>
-            <a href="success.php" class="flex flex-col items-center px-4 py-1 hover:text-blue-600">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+            <a href="keranjang.php" class="flex flex-col items-center px-4 py-1 hover:text-blue-600">
+                <svg class="w-6 h-6 text-black-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
                 </svg>
-                <span class="text-xs mt-1">Pesanan</span>
+                <span class="text-xs mt-1">Keranjang</span>
             </a>
         </div>
     </nav>
@@ -334,15 +336,6 @@ foreach ($menu_data as $menu) {
             }, 300);
         }
 
-        // Cart Animation and Toast
-        function animateCart() {
-            const cartIcon = document.querySelector('.group');
-            if (cartIcon) {
-                cartIcon.classList.add('animate-pulse');
-                setTimeout(() => cartIcon.classList.remove('animate-pulse'), 500);
-            }
-        }
-
         // Handle Add to Cart
         document.addEventListener('DOMContentLoaded', function() {
             const addButtons = document.querySelectorAll('.btn-tambah');
@@ -355,7 +348,7 @@ foreach ($menu_data as $menu) {
                         body: new FormData(form)
                     }).then(response => {
                         if (response.ok) {
-                            animateCart();
+                            // animateCart(); // Hapus karena icon cart udah ga di header
                             showToast('Berhasil ditambahkan ke keranjang!');
                         } else {
                             showToast('Gagal menambahkan ke keranjang.');

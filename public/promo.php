@@ -3,36 +3,29 @@ session_start();
 include '../config/db.php';
 include '../config/functions.php';
 
-// Hitung jumlah item di keranjang
-$cart_count = 0;
-if (isset($_SESSION['keranjang']) && is_array($_SESSION['keranjang'])) {
-    $cart_count = array_sum(array_column($_SESSION['keranjang'], 'jumlah'));
-}
-
 // Ambil semua menu untuk mapping
 $menu_query = "SELECT * FROM menu";
 $menu_result = $conn->query($menu_query);
 $menu_data = [];
 while ($row = $menu_result->fetch_assoc()) {
-    $menu_data[$row['id_menu']] = $row;
+    $menu_data[$row['menu_id']] = $row; // Ganti id_menu jadi menu_id
 }
 
-// Ambil promo yang masih berlaku
-date_default_timezone_set('Asia/Jakarta');
-$today = date('Y-m-d');
-$promo_query = "SELECT * FROM promos WHERE CURDATE() BETWEEN start_date AND end_date";
-$promos = $conn->query($promo_query);
+// Ambil promo yang masih berlaku pake getActivePromos()
+$promos = getActivePromos($conn);
+
+// Format promo_list untuk tampilan
 $promo_list = [];
-while ($promo = $promos->fetch_assoc()) {
+foreach ($promos as $promo) {
     $promo['menu_names'] = [];
-    if ($promo['promo_type'] === 'discount' && !empty($promo['menu_target'])) {
-        foreach (json_decode($promo['menu_target'], true) as $menu_id) {
+    if ($promo['promo_type'] === 'discount' && !empty($promo['menu_ids'])) { // Ganti menu_target jadi menu_ids
+        foreach ($promo['menu_ids'] as $menu_id) {
             if (isset($menu_data[$menu_id])) {
                 $promo['menu_names'][] = $menu_data[$menu_id]['nama_menu'];
             }
         }
-    } elseif ($promo['promo_type'] === 'bundle' && !empty($promo['bundle_items'])) {
-        foreach (json_decode($promo['bundle_items'], true) as $menu_id) {
+    } elseif ($promo['promo_type'] === 'bundle' && !empty($promo['menu_ids'])) { // Ganti bundle_items jadi menu_ids
+        foreach ($promo['menu_ids'] as $menu_id) {
             if (isset($menu_data[$menu_id])) {
                 $promo['menu_names'][] = $menu_data[$menu_id]['nama_menu'];
             }
@@ -50,7 +43,8 @@ while ($promo = $promos->fetch_assoc()) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Promo - ZidanKitchen</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;5
+00;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/promo.css">
 </head>
 
@@ -79,15 +73,7 @@ while ($promo = $promos->fetch_assoc()) {
                     Zidan<span class="text-blue-600">Kitchen</span>
                 </h1>
             </div>
-            <div class="flex items-center space-x-2">
-                <a href="keranjang.php" class="relative group">
-                    <div class="p-2 rounded-full bg-white/50 hover:bg-white transition-all duration-300 shadow-md group-hover:shadow-lg">
-                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
-                        </svg>
-                    </div>
-                </a>
-            </div>
+            <!-- Hapus icon cart dari header -->
         </div>
     </header>
 
@@ -138,22 +124,14 @@ while ($promo = $promos->fetch_assoc()) {
                 </svg>
                 <span class="text-xs mt-1">Menu</span>
             </a>
-            <a href="success.php" class="flex flex-col items-center px-4 py-1 hover:text-blue-600">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+            <a href="keranjang.php" class="flex flex-col items-center px-4 py-1 hover:text-blue-600">
+                <svg class="w-6 h-6 text-black-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
                 </svg>
-                <span class="text-xs mt-1">Pesanan</span>
+                <span class="text-xs mt-1">Keranjang</span>
             </a>
         </div>
     </nav>
-
-    <!-- JavaScript -->
-    <script>
-        // Update Cart Count (removed since cart count badge is no longer needed)
-        document.addEventListener('DOMContentLoaded', function() {
-            // No cart count update needed
-        });
-    </script>
 </body>
 
 </html>

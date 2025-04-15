@@ -3,9 +3,12 @@ session_start();
 require_once '../vendor/autoload.php';
 include '../config/db.php';
 
+// Load Midtrans config
+$midtrans_config = include '../config/midtrans.php';
+
 // Validate session and parameters
-if (!isset($_SESSION['customer_id']) || !isset($_GET['order_id']) || !isset($_GET['total'])) {
-    error_log("Missing session or parameters: customer_id=" . ($_SESSION['customer_id'] ?? 'unset') . ", order_id=" . ($_GET['order_id'] ?? 'unset') . ", total=" . ($_GET['total'] ?? 'unset'));
+if (!isset($_SESSION['customer_id']) || !isset($_SESSION['meja_id']) || !isset($_GET['order_id']) || !isset($_GET['total'])) {
+    error_log("Missing session or parameters: customer_id=" . ($_SESSION['customer_id'] ?? 'unset') . ", meja_id=" . ($_SESSION['meja_id'] ?? 'unset') . ", order_id=" . ($_GET['order_id'] ?? 'unset') . ", total=" . ($_GET['total'] ?? 'unset'));
     header("Location: menu.php");
     exit;
 }
@@ -14,7 +17,7 @@ $order_id = (int)$_GET['order_id'];
 $total_harga = (float)$_GET['total'];
 
 // Verify order belongs to customer
-$stmt = $conn->prepare("SELECT id, status, total_harga FROM orders WHERE id = ? AND customer_id = ?");
+$stmt = $conn->prepare("SELECT order_id, status, total_harga FROM orders WHERE order_id = ? AND customer_id = ?");
 $stmt->bind_param("ii", $order_id, $_SESSION['customer_id']);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -27,36 +30,36 @@ if ($result->num_rows === 0) {
 
 $order = $result->fetch_assoc();
 
-// If order is already paid, redirect to success
-if ($order['status'] === 'paid') {
+// If order is already paid or done, redirect to success
+if (in_array($order['status'], ['paid', 'done'])) {
     header("Location: success.php");
     exit;
 }
 
 // Validate total_harga
-if (abs($order['total_harga'] - $total_harga) > 0.01) {
+if ($order['total_harga'] != $total_harga) {
     error_log("Total mismatch for order $order_id: DB={$order['total_harga']}, GET=$total_harga");
-    header("Location: order-status.php?order_id=$order_id&status=error");
+    header("Location: menu.php?payment=error");
     exit;
 }
 
 // Get customer data
-$customer_stmt = $conn->prepare("SELECT name, phone FROM customers WHERE id = ?");
+$customer_stmt = $conn->prepare("SELECT name, phone FROM customers WHERE customer_id = ?");
 $customer_stmt->bind_param("i", $_SESSION['customer_id']);
 $customer_stmt->execute();
 $customer_result = $customer_stmt->get_result();
 
 if ($customer_result->num_rows === 0) {
     error_log("Customer {$_SESSION['customer_id']} not found");
-    header("Location: order-status.php?order_id=$order_id&status=error");
+    header("Location: menu.php?payment=error");
     exit;
 }
 
 $customer = $customer_result->fetch_assoc();
 
 // Setup Midtrans
-\Midtrans\Config::$serverKey = 'SB-Mid-server-p_rr6ZhgUcuXXt7ZJaAJsSM2';
-\Midtrans\Config::$isProduction = false;
+\Midtrans\Config::$serverKey = $midtrans_config['server_key'];
+\Midtrans\Config::$isProduction = $midtrans_config['is_production'];
 \Midtrans\Config::$isSanitized = true;
 \Midtrans\Config::$is3ds = true;
 
@@ -79,7 +82,7 @@ $params = [
         'first_name' => $customer['name'],
         'phone' => $customer['phone'],
         'billing_address' => [
-            'address' => 'Meja ' . $_SESSION['id_meja']
+            'address' => 'Meja ' . $_SESSION['meja_id']
         ]
     ],
     'item_details' => getOrderItems($order_id, $conn),
@@ -98,7 +101,7 @@ try {
     error_log("Midtrans params for order $order_id: " . json_encode($params));
 
     // Update order with Midtrans ID
-    $update_stmt = $conn->prepare("UPDATE orders SET midtrans_order_id = ? WHERE id = ?");
+    $update_stmt = $conn->prepare("UPDATE orders SET midtrans_order_id = ? WHERE order_id = ?");
     $update_stmt->bind_param("si", $midtrans_order_id, $order_id);
     if (!$update_stmt->execute()) {
         throw new Exception("Failed to update midtrans_order_id: " . $conn->error);
@@ -113,7 +116,7 @@ try {
     error_log("Snap token for order $order_id: $snapToken");
 
     // Store payment token
-    $update_stmt = $conn->prepare("UPDATE orders SET snap_token = ? WHERE id = ?");
+    $update_stmt = $conn->prepare("UPDATE orders SET snap_token = ? WHERE order_id = ?");
     $update_stmt->bind_param("si", $snapToken, $order_id);
     if (!$update_stmt->execute()) {
         throw new Exception("Failed to update snap_token: " . $conn->error);
@@ -122,21 +125,22 @@ try {
         throw new Exception("No rows updated for snap_token on order $order_id");
     }
 
-    // Save order_id to session for success.php
+    // Save order_id to session
     $_SESSION['order_id'] = $order_id;
 
 } catch (Exception $e) {
     error_log("Midtrans Error for order $order_id: " . $e->getMessage());
-    $conn->query("UPDATE orders SET status = 'failed' WHERE id = $order_id");
-    header("Location: order-status.php?order_id=$order_id&status=error");
+    $conn->query("UPDATE orders SET status = 'failed' WHERE order_id = $order_id");
+    header("Location: menu.php?payment=error");
     exit;
 }
 
 function getOrderItems($order_id, $conn) {
     $items = [];
     $stmt = $conn->prepare("
-        SELECT oi.id_menu, oi.nama_menu, oi.jumlah, oi.harga 
+        SELECT oi.menu_id, m.nama_menu, oi.jumlah, oi.subtotal 
         FROM order_items oi
+        JOIN menu m ON oi.menu_id = m.menu_id
         WHERE oi.order_id = ?
     ");
     $stmt->bind_param("i", $order_id);
@@ -145,13 +149,14 @@ function getOrderItems($order_id, $conn) {
     
     $total = 0;
     while ($row = $result->fetch_assoc()) {
+        $price = $row['subtotal'] / $row['jumlah']; // Hitung harga satuan
         $items[] = [
-            'id' => $row['id_menu'],
+            'id' => $row['menu_id'],
             'name' => $row['nama_menu'],
-            'price' => $row['harga'], // Pake harga setelah diskon dari order_items
+            'price' => $price,
             'quantity' => $row['jumlah']
         ];
-        $total += $row['harga'] * $row['jumlah'];
+        $total += $price * $row['jumlah'];
     }
     error_log("Order $order_id items total: $total");
     return $items;
@@ -165,7 +170,7 @@ function getOrderItems($order_id, $conn) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pembayaran - ZidanKitchen</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="SB-Mid-client-p_rr6ZhgUcuXXt7ZJaAJsSM2"></script>
+    <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="<?php echo $midtrans_config['client_key']; ?>"></script>
     <style>
         .payment-container { background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%); }
         .payment-card { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); transition: all 0.3s ease; }
@@ -211,11 +216,11 @@ function getOrderItems($order_id, $conn) {
                     },
                     onPending: function(result) {
                         console.log('Payment Pending:', result);
-                        window.location = 'order-status.php?order_id=<?= $order_id ?>&status=pending';
+                        window.location = 'menu.php?payment=pending';
                     },
                     onError: function(error) {
                         console.log('Payment Error:', error);
-                        window.location = 'order-status.php?order_id=<?= $order_id ?>&status=error';
+                        window.location = 'menu.php?payment=error';
                     },
                     onClose: function() {
                         document.getElementById('pay-button').innerHTML = 'Pilih Metode Pembayaran';

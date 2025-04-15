@@ -4,21 +4,45 @@ date_default_timezone_set('Asia/Jakarta');
 // Fungsi untuk ambil promo aktif
 function getActivePromos($conn) {
     $today = date('Y-m-d');
-    $query = "SELECT * FROM promos 
-              WHERE start_date <= ? AND end_date >= ? 
-              AND (promo_type = 'discount' OR promo_type = 'bundle')";
+    // Update query: Join sama tabel promo_menu buat ambil menu yang terkait promo
+    $query = "SELECT p.*, pm.menu_id 
+              FROM promos p 
+              LEFT JOIN promo_menu pm ON p.promo_id = pm.promo_id
+              WHERE p.start_date <= ? AND p.end_date >= ? 
+              AND (p.promo_type = 'discount' OR p.promo_type = 'bundle')";
     $stmt = $conn->prepare($query);
     $stmt->bind_param("ss", $today, $today);
     $stmt->execute();
     $result = $stmt->get_result();
+
+    // Group data promo biar tiap promo punya array menu_ids
     $promos = [];
     while ($row = $result->fetch_assoc()) {
-        $row['menu_target'] = json_decode($row['menu_target'] ?? '[]', true);
-        $row['bundle_items'] = json_decode($row['bundle_items'] ?? '[]', true);
-        $promos[] = $row;
+        $promo_id = $row['promo_id'];
+        // Kalo promo belum ada di array, init dulu
+        if (!isset($promos[$promo_id])) {
+            $promos[$promo_id] = [
+                'promo_id' => $row['promo_id'],
+                'title' => $row['title'],
+                'description' => $row['description'],
+                'discount' => $row['discount'],
+                'promo_type' => $row['promo_type'],
+                'bundle_price' => $row['bundle_price'],
+                'bundle_discount_type' => $row['bundle_discount_type'],
+                'bundle_discount_value' => $row['bundle_discount_value'],
+                'image' => $row['image'],
+                'start_date' => $row['start_date'],
+                'end_date' => $row['end_date'],
+                'menu_ids' => [] // Gantikan menu_target dan bundle_items
+            ];
+        }
+        // Tambahin menu_id ke array menu_ids
+        if ($row['menu_id']) {
+            $promos[$promo_id]['menu_ids'][] = $row['menu_id'];
+        }
     }
     $stmt->close();
-    return $promos;
+    return array_values($promos); // Ubah ke array biasa (tanpa promo_id sebagai key)
 }
 
 // Fungsi untuk hitung harga setelah diskon persentase
@@ -29,8 +53,8 @@ function applyDiscount($price, $discount) {
 // Fungsi untuk cek apakah menu dapet diskon (promo tipe Discount)
 function getMenuDiscount($menu_id, $promos) {
     foreach ($promos as $promo) {
-        if ($promo['promo_type'] === 'discount' && !empty($promo['menu_target'])) {
-            if (in_array($menu_id, $promo['menu_target'])) {
+        if ($promo['promo_type'] === 'discount' && !empty($promo['menu_ids'])) {
+            if (in_array($menu_id, $promo['menu_ids'])) {
                 return $promo['discount'];
             }
         }
@@ -40,15 +64,16 @@ function getMenuDiscount($menu_id, $promos) {
 
 // Fungsi untuk cek apakah keranjang memenuhi syarat promo bundle
 function checkBundlePromo($cart, $promo) {
-    if ($promo['promo_type'] !== 'bundle' || empty($promo['bundle_items'])) {
+    if ($promo['promo_type'] !== 'bundle' || empty($promo['menu_ids'])) {
         return false;
     }
 
     // Cek apakah semua item dalam bundle ada di keranjang
-    foreach ($promo['bundle_items'] as $bundle_item_id) {
+    foreach ($promo['menu_ids'] as $bundle_item_id) {
         $found = false;
         foreach ($cart as $cart_item) {
-            if ($cart_item['id_menu'] == $bundle_item_id && $cart_item['jumlah'] > 0) {
+            // Ubah id_menu jadi menu_id sesuai struktur tabel
+            if ($cart_item['menu_id'] == $bundle_item_id && $cart_item['jumlah'] > 0) {
                 $found = true;
                 break;
             }
@@ -68,10 +93,10 @@ function applyBundleDiscount($cart, $menu_data, $promo) {
 
     // Hitung total harga asli untuk item dalam bundle
     $total_original = 0;
-    $bundle_items = $promo['bundle_items'];
+    $bundle_items = $promo['menu_ids'];
     foreach ($cart as $cart_item) {
-        if (in_array($cart_item['id_menu'], $bundle_items)) {
-            $total_original += $menu_data[$cart_item['id_menu']]['harga'] * $cart_item['jumlah'];
+        if (in_array($cart_item['menu_id'], $bundle_items)) {
+            $total_original += $menu_data[$cart_item['menu_id']]['harga'] * $cart_item['jumlah'];
         }
     }
 
@@ -108,14 +133,14 @@ function getItemPrice($menu_id, $cart, $menu_data, $promos) {
     }
 
     if ($bundle_discount_total > 0) {
-        $bundle_items = $applicable_bundle_promo['bundle_items'];
+        $bundle_items = $applicable_bundle_promo['menu_ids'];
         // Hanya terapkan diskon bundle jika menu_id ada di bundle_items
         if (in_array($menu_id, $bundle_items)) {
             // Proporsikan diskon ke setiap item dalam bundle
             $total_original_bundle = 0;
             foreach ($cart as $cart_item) {
-                if (in_array($cart_item['id_menu'], $bundle_items)) {
-                    $total_original_bundle += $menu_data[$cart_item['id_menu']]['harga'] * $cart_item['jumlah'];
+                if (in_array($cart_item['menu_id'], $bundle_items)) {
+                    $total_original_bundle += $menu_data[$cart_item['menu_id']]['harga'] * $cart_item['jumlah'];
                 }
             }
 
@@ -123,7 +148,7 @@ function getItemPrice($menu_id, $cart, $menu_data, $promos) {
             if ($total_original_bundle > 0) {
                 $item_original_total = $original_price;
                 $discount_proportion = ($item_original_total / $total_original_bundle) * $bundle_discount_total;
-                $item_index = array_search($menu_id, array_column($cart, 'id_menu'));
+                $item_index = array_search($menu_id, array_column($cart, 'menu_id'));
                 $item_quantity = $cart[$item_index]['jumlah'];
                 return $original_price - ($discount_proportion / $item_quantity);
             }

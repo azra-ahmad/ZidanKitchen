@@ -3,8 +3,8 @@ session_start();
 include '../config/db.php';
 include '../config/functions.php';
 
-if (!isset($_SESSION['id_meja']) || !isset($_SESSION['customer_id'])) {
-    header("Location: order.php?table=" . ($_SESSION['id_meja'] ?? ''));
+if (!isset($_SESSION['meja_id']) || !isset($_SESSION['customer_id'])) { 
+    header("Location: register.php?table=" . ($_SESSION['meja_id'] ?? '')); 
     exit;
 }
 
@@ -17,7 +17,7 @@ $menu_query = "SELECT * FROM menu";
 $menu_result = $conn->query($menu_query);
 $menu_data = [];
 while ($row = $menu_result->fetch_assoc()) {
-    $menu_data[$row['id_menu']] = $row;
+    $menu_data[$row['menu_id']] = $row; 
 }
 
 // Ambil promo aktif
@@ -25,14 +25,14 @@ $promos = getActivePromos($conn);
 
 // Handle tambah/kurang item
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['id_menu']) && isset($_POST['action'])) {
-        $id_menu = (int)$_POST['id_menu'];
+    if (isset($_POST['menu_id']) && isset($_POST['action'])) { 
+        $menu_id = (int)$_POST['menu_id'];
         $action = $_POST['action'];
         
         // Cari item di keranjang
         $item_index = null;
         foreach ($_SESSION['keranjang'] as $i => $item) {
-            if ($item['id_menu'] == $id_menu) {
+            if ($item['menu_id'] == $menu_id) { 
                 $item_index = $i;
                 break;
             }
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['keranjang'][$item_index]['jumlah']++;
             } else {
                 $_SESSION['keranjang'][] = [
-                    'id_menu' => $id_menu,
+                    'menu_id' => $menu_id, 
                     'jumlah' => 1
                 ];
             }
@@ -70,39 +70,39 @@ foreach ($promos as $promo) {
 }
 
 foreach ($_SESSION['keranjang'] as $item) {
-    $id_menu = $item['id_menu'];
-    if (isset($menu_data[$id_menu])) {
-        $menu_item = $menu_data[$id_menu];
+    $menu_id = $item['menu_id']; 
+    if (isset($menu_data[$menu_id])) {
+        $menu_item = $menu_data[$menu_id];
         
         // Tentukan harga dan promo
-        $harga_promo = $menu_item['harga']; // Default: harga asli
+        $harga_promo = $menu_item['harga']; 
         $promo_type = null;
         $promo_title = null;
 
         // Cek promo diskon
-        $discount = getMenuDiscount($id_menu, $promos);
+        $discount = getMenuDiscount($menu_id, $promos);
         if ($discount > 0) {
             $promo_type = 'discount';
             $harga_promo = $menu_item['harga'] - ($menu_item['harga'] * $discount / 100);
             foreach ($promos as $promo) {
-                if ($promo['promo_type'] === 'discount' && in_array($id_menu, $promo['menu_target'])) {
+                if ($promo['promo_type'] === 'discount' && in_array($menu_id, $promo['menu_ids'])) { 
                     $promo_title = $promo['title'];
                     break;
                 }
             }
         } else {
             // Cek promo bundle
-            if ($active_bundle_promo && in_array($id_menu, $active_bundle_promo['bundle_items'])) {
+            if ($active_bundle_promo && in_array($menu_id, $active_bundle_promo['menu_ids'])) { 
                 $promo_type = 'bundle';
                 $promo_title = $active_bundle_promo['title'];
-                $harga_promo = getItemPrice($id_menu, $_SESSION['keranjang'], $menu_data, $promos);
+                $harga_promo = getItemPrice($menu_id, $_SESSION['keranjang'], $menu_data, $promos);
             }
         }
 
         $subtotal = $harga_promo * $item['jumlah'];
 
         $keranjang_display[] = [
-            'id_menu' => $id_menu,
+            'menu_id' => $menu_id, 
             'nama_menu' => $menu_item['nama_menu'],
             'gambar' => $menu_item['gambar'],
             'harga_asli' => $menu_item['harga'],
@@ -228,7 +228,7 @@ $_SESSION['total_harga'] = $total;
                                 <div class="flex items-center mt-3">
                                     <!-- Form Kurang -->
                                     <form method="POST" action="keranjang.php">
-                                        <input type="hidden" name="id_menu" value="<?= $item['id_menu'] ?>">
+                                        <input type="hidden" name="menu_id" value="<?= $item['menu_id'] ?>">
                                         <input type="hidden" name="action" value="kurang">
                                         <button type="submit" class="quantity-btn bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 transition">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -241,7 +241,7 @@ $_SESSION['total_harga'] = $total;
 
                                     <!-- Form Tambah -->
                                     <form method="POST" action="keranjang.php">
-                                        <input type="hidden" name="id_menu" value="<?= $item['id_menu']; ?>">
+                                        <input type="hidden" name="menu_id" value="<?= $item['menu_id']; ?>"> 
                                         <input type="hidden" name="action" value="tambah">
                                         <button type="submit" class="quantity-btn bg-green-500 text-white rounded-full hover:bg-green-600 transition">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

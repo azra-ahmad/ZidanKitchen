@@ -2,9 +2,12 @@
 require_once '../vendor/autoload.php';
 include '../config/db.php';
 
+// Load Midtrans config
+$midtrans_config = include '../config/midtrans.php';
+
 // Setup Midtrans Config
-\Midtrans\Config::$serverKey = 'SB-Mid-server-p_rr6ZhgUcuXXt7ZJaAJsSM2';
-\Midtrans\Config::$isProduction = false;
+\Midtrans\Config::$serverKey = $midtrans_config['server_key'];
+\Midtrans\Config::$isProduction = $midtrans_config['is_production'];
 
 // Ambil data notifikasi dari Midtrans (via POST)
 $json = file_get_contents('php://input');
@@ -23,7 +26,7 @@ $status_code = $data['status_code'];
 $gross_amount = $data['gross_amount'];
 $signature_key = $data['signature_key'];
 
-$expected_signature = hash('sha512', $order_id . $status_code . $gross_amount . $server_key);
+$expected_signature = hash('sha512', $order_id . $status_code . number_format($gross_amount, 0, '.', '') . $server_key);
 if ($signature_key !== $expected_signature) {
     http_response_code(403);
     error_log("Signature verification failed for order $order_id");
@@ -71,7 +74,7 @@ switch ($transaction_status) {
 }
 
 // Update status dan metode pembayaran di database
-$query = "UPDATE orders SET status = ?, metode_pembayaran = ? WHERE id = ? AND midtrans_order_id = ?";
+$query = "UPDATE orders SET status = ?, metode_pembayaran = ? WHERE order_id = ? AND midtrans_order_id = ?";
 $stmt = $conn->prepare($query);
 $stmt->bind_param("ssis", $status, $payment_type, $real_order_id, $order_id);
 if (!$stmt->execute()) {
