@@ -11,11 +11,33 @@ date_default_timezone_set('Asia/Jakarta');
 // Pagination setup
 $items_per_page = 5;
 
+// Search and Filter Parameters
+$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$status_filter = isset($_GET['status_filter']) ? $_GET['status_filter'] : 'all';
+
 // Current Orders (pending/paid)
 $current_page_current = isset($_GET['page_current']) ? (int)$_GET['page_current'] : 1;
 $offset_current = ($current_page_current - 1) * $items_per_page;
 
-$total_current_query = $conn->query("SELECT COUNT(*) FROM orders WHERE status IN ('pending', 'paid')");
+// Build the WHERE clause for Current Orders
+$where_clause_current = "WHERE o.status IN ('pending', 'paid')";
+if ($status_filter !== 'all') {
+    $status_filter = $conn->real_escape_string($status_filter);
+    $where_clause_current .= " AND o.status = '$status_filter'";
+}
+if ($search_query) {
+    $search_query = $conn->real_escape_string($search_query);
+    $where_clause_current .= " AND (o.id LIKE '%$search_query%' 
+                            OR o.midtrans_order_id LIKE '%$search_query%' 
+                            OR c.name LIKE '%$search_query%')";
+}
+
+$total_current_query = $conn->query("
+    SELECT COUNT(*) 
+    FROM orders o
+    LEFT JOIN customers c ON o.customer_id = c.id
+    $where_clause_current
+");
 $total_current = $total_current_query->fetch_row()[0];
 $total_pages_current = ceil($total_current / $items_per_page);
 
@@ -24,7 +46,7 @@ $current_orders_query = "
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
     LEFT JOIN customers c ON o.customer_id = c.id
-    WHERE o.status IN ('pending', 'paid')
+    $where_clause_current
     ORDER BY o.created_at DESC
     LIMIT $items_per_page OFFSET $offset_current
 ";
@@ -37,7 +59,20 @@ if ($current_orders === false) {
 $current_page_completed = isset($_GET['page_completed']) ? (int)$_GET['page_completed'] : 1;
 $offset_completed = ($current_page_completed - 1) * $items_per_page;
 
-$total_completed_query = $conn->query("SELECT COUNT(*) FROM orders WHERE status = 'done'");
+// Build the WHERE clause for Completed Orders
+$where_clause_completed = "WHERE o.status = 'done'";
+if ($search_query) {
+    $where_clause_completed .= " AND (o.id LIKE '%$search_query%' 
+                               OR o.midtrans_order_id LIKE '%$search_query%' 
+                               OR c.name LIKE '%$search_query%')";
+}
+
+$total_completed_query = $conn->query("
+    SELECT COUNT(*) 
+    FROM orders o
+    LEFT JOIN customers c ON o.customer_id = c.id
+    $where_clause_completed
+");
 $total_completed = $total_completed_query->fetch_row()[0];
 $total_pages_completed = ceil($total_completed / $items_per_page);
 
@@ -46,7 +81,7 @@ $completed_orders_query = "
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
     LEFT JOIN customers c ON o.customer_id = c.id
-    WHERE o.status = 'done'
+    $where_clause_completed
     ORDER BY o.created_at DESC
     LIMIT $items_per_page OFFSET $offset_completed
 ";
@@ -59,7 +94,20 @@ if ($completed_orders === false) {
 $current_page_failed = isset($_GET['page_failed']) ? (int)$_GET['page_failed'] : 1;
 $offset_failed = ($current_page_failed - 1) * $items_per_page;
 
-$total_failed_query = $conn->query("SELECT COUNT(*) FROM orders WHERE status = 'failed'");
+// Build the WHERE clause for Failed Orders
+$where_clause_failed = "WHERE o.status = 'failed'";
+if ($search_query) {
+    $where_clause_failed .= " AND (o.id LIKE '%$search_query%' 
+                             OR o.midtrans_order_id LIKE '%$search_query%' 
+                             OR c.name LIKE '%$search_query%')";
+}
+
+$total_failed_query = $conn->query("
+    SELECT COUNT(*) 
+    FROM orders o
+    LEFT JOIN customers c ON o.customer_id = c.id
+    $where_clause_failed
+");
 $total_failed = $total_failed_query->fetch_row()[0];
 $total_pages_failed = ceil($total_failed / $items_per_page);
 
@@ -68,7 +116,7 @@ $failed_orders_query = "
     FROM orders o
     LEFT JOIN meja m ON o.id_meja = m.id_meja
     LEFT JOIN customers c ON o.customer_id = c.id
-    WHERE o.status = 'failed'
+    $where_clause_failed
     ORDER BY o.created_at DESC
     LIMIT $items_per_page OFFSET $offset_failed
 ";
@@ -106,7 +154,7 @@ function buildUrl($params) {
             overflow-x: auto;
         }
         .status-badge {
-            @apply px-3 py-1 rounded-full text-xs font-medium;
+            @apply px-3 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1;
         }
         .status-badge.pending {
             @apply bg-orange-100 text-orange-800;
@@ -137,6 +185,13 @@ function buildUrl($params) {
             top: 0;
             background-color: #f9fafb;
             z-index: 10;
+        }
+        .sort-btn {
+            cursor: pointer;
+            padding: 0 0.25rem;
+        }
+        .sort-btn.active i {
+            color: #f97316;
         }
         .pagination-container {
             display: flex;
@@ -177,6 +232,33 @@ function buildUrl($params) {
             color: #d1d5db;
             cursor: not-allowed;
         }
+        /* Filter and Search Styles */
+        .filter-container {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+        .filter-select, .search-input {
+            padding: 0.5rem 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            color: #374151;
+            transition: all 0.2s;
+        }
+        .filter-select:focus, .search-input:focus {
+            outline: none;
+            border-color: #f97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        }
+        .search-input::placeholder {
+            color: #9ca3af;
+        }
+        /* Hover Animation */
+        tr {
+            transition: background-color 0.3s ease;
+        }
         /* SweetAlert2 Custom Styles */
         .swal2-container {
             z-index: 99999 !important;
@@ -187,7 +269,6 @@ function buildUrl($params) {
         .swal2-popup {
             animation: fadeIn 0.3s, bounceIn 0.5s;
         }
-        /* Animasi saat popup muncul */
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -197,7 +278,6 @@ function buildUrl($params) {
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
-        /* Animasi saat popup ditutup */
         .swal2-popup.swal2-hide {
             animation: fadeOut 0.3s, bounceOut 0.5s;
         }
@@ -269,18 +349,41 @@ function buildUrl($params) {
                     </span>
                 </h3>
             </div>
+            <!-- Filter and Search -->
+            <div class="p-6 border-b border-gray-100">
+                <div class="filter-container">
+                    <select id="status-filter" class="filter-select">
+                        <option value="all" <?= $status_filter === 'all' ? 'selected' : '' ?>>Semua Status</option>
+                        <option value="pending" <?= $status_filter === 'pending' ? 'selected' : '' ?>>Pending</option>
+                        <option value="paid" <?= $status_filter === 'paid' ? 'selected' : '' ?>>Paid</option>
+                    </select>
+                    <input type="text" id="search-input" class="search-input" placeholder="Cari ID, Midtrans ID, atau Customer..." value="<?= htmlspecialchars($search_query) ?>">
+                </div>
+            </div>
             <div class="overflow-x-auto max-w-full">
-                <table class="min-w-full table-auto">
+                <table class="min-w-full table-auto" id="current-orders-table">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ID
+                                <span class="sort-btn" onclick="sortTable('current-orders-table', 0, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('current-orders-table', 0, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Midtrans ID</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Total
+                                <span class="sort-btn" onclick="sortTable('current-orders-table', 4, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('current-orders-table', 4, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Waktu
+                                <span class="sort-btn" onclick="sortTable('current-orders-table', 7, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('current-orders-table', 7, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                         </tr>
                     </thead>
@@ -295,6 +398,7 @@ function buildUrl($params) {
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['metode_pembayaran'] ? ucfirst($row['metode_pembayaran']) : '-' ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="status-badge <?= $row['status'] ?>">
+                                        <i class="fas <?= $row['status'] === 'pending' ? 'fa-hourglass-half' : 'fa-check-circle' ?>"></i>
                                         <?= ucfirst($row['status']) ?>
                                     </span>
                                 </td>
@@ -358,16 +462,28 @@ function buildUrl($params) {
                 </h3>
             </div>
             <div class="overflow-x-auto max-w-full">
-                <table class="min-w-full table-auto">
+                <table class="min-w-full table-auto" id="completed-orders-table">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ID
+                                <span class="sort-btn" onclick="sortTable('completed-orders-table', 0, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('completed-orders-table', 0, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Midtrans ID</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Total
+                                <span class="sort-btn" onclick="sortTable('completed-orders-table', 4, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('completed-orders-table', 4, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Waktu
+                                <span class="sort-btn" onclick="sortTable('completed-orders-table', 6, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('completed-orders-table', 6, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                         </tr>
                     </thead>
@@ -437,16 +553,28 @@ function buildUrl($params) {
                 </h3>
             </div>
             <div class="overflow-x-auto max-w-full">
-                <table class="min-w-full table-auto">
+                <table class="min-w-full table-auto" id="failed-orders-table">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ID
+                                <span class="sort-btn" onclick="sortTable('failed-orders-table', 0, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('failed-orders-table', 0, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Midtrans ID</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Total
+                                <span class="sort-btn" onclick="sortTable('failed-orders-table', 4, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('failed-orders-table', 4, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Waktu
+                                <span class="sort-btn" onclick="sortTable('failed-orders-table', 6, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                <span class="sort-btn" onclick="sortTable('failed-orders-table', 6, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                            </th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                         </tr>
                     </thead>
@@ -532,7 +660,6 @@ function buildUrl($params) {
                         no-repeat
                     `,
                     didClose: () => {
-                        // Pastikan backdrop dihapus setelah popup ditutup
                         document.querySelector('.swal2-container')?.remove();
                     }
                 }).then((result) => {
@@ -541,6 +668,60 @@ function buildUrl($params) {
                     }
                 });
             });
+        });
+
+        // Table sorting
+        function sortTable(tableId, colIndex, sortOrder) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort((a, b) => {
+                let aValue = a.cells[colIndex].innerText;
+                let bValue = b.cells[colIndex].innerText;
+
+                // Special handling for "Total" (currency) and "Waktu" (date)
+                if (colIndex === 4) { // Total (all tables)
+                    aValue = parseFloat(aValue.replace(/[^0-9]/g, ''));
+                    bValue = parseFloat(bValue.replace(/[^0-9]/g, ''));
+                } else if (colIndex === 7 || colIndex === 6) { // Waktu (current: 7, completed/failed: 6)
+                    aValue = new Date(aValue.split('/').reverse().join('-') + ' ' + aValue.split(' ')[1]).getTime();
+                    bValue = new Date(bValue.split('/').reverse().join('-') + ' ' + bValue.split(' ')[1]).getTime();
+                } else if (colIndex === 0) { // ID
+                    aValue = parseInt(aValue.replace('#', ''));
+                    bValue = parseInt(bValue.replace('#', ''));
+                }
+
+                return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+            });
+
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+
+            // Update sort button styles
+            const sortButtons = table.querySelectorAll(`th:nth-child(${colIndex + 1}) .sort-btn`);
+            sortButtons.forEach(btn => btn.classList.remove('active'));
+            const activeBtn = table.querySelector(`th:nth-child(${colIndex + 1}) .sort-btn[onclick*="${sortOrder}"]`);
+            activeBtn.classList.add('active');
+        }
+
+        // Filter and Search Handling
+        const statusFilter = document.getElementById('status-filter');
+        const searchInput = document.getElementById('search-input');
+
+        function updateUrl() {
+            const params = new URLSearchParams(window.location.search);
+            params.set('status_filter', statusFilter.value);
+            params.set('search', searchInput.value);
+            params.set('page_current', '1'); // Reset to first page on filter/search
+            window.location.search = params.toString();
+        }
+
+        statusFilter.addEventListener('change', updateUrl);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                updateUrl();
+            }
         });
     </script>
 </body>
