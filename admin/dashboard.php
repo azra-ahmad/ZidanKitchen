@@ -8,7 +8,7 @@ if (!isset($_SESSION['admin_logged_in'])) {
 include '../config/db.php';
 date_default_timezone_set('Asia/Jakarta');
 
-// Get orders data
+// Get orders data (pending/paid)
 $result = $conn->query("
     SELECT * FROM orders 
     WHERE status IN ('paid', 'pending') 
@@ -59,17 +59,99 @@ $popular_menu = $conn->query("
     LIMIT 5
 ");
 
-// Get data for charts
-$weekly_orders = $conn->query("
+// Generate data for the last 4 weeks (weekly aggregation)
+$weeks = [];
+$week_labels = [];
+$week_date_ranges = [];
+$weekly_orders_data = [];
+$weekly_revenue_data = [];
+$start_date = new DateTime();
+$start_date->modify('-27 days'); // 4 weeks (28 days) including today
+for ($i = 0; $i < 4; $i++) {
+    $week_start = clone $start_date;
+    $week_start->modify("+$i weeks");
+    $week_end = clone $week_start;
+    $week_end->modify("+6 days");
+    $weeks[] = [
+        'label' => "Minggu " . ($i + 1),
+        'date_range' => "(" . $week_start->format('d M') . " - " . $week_end->format('d M') . ")",
+        'start' => $week_start->format('Y-m-d'),
+        'end' => $week_end->format('Y-m-d')
+    ];
+    $week_labels[] = "Minggu " . ($i + 1);
+    $week_date_ranges[] = $week_start->format('d M') . " - " . $week_end->format('d M');
+}
+
+// Query orders and revenue for the last 4 weeks
+$weekly_orders_query = $conn->query("
     SELECT 
-        DAYNAME(created_at) AS day, 
+        WEEK(created_at, 1) AS week_num, 
         COUNT(id) AS count,
         SUM(CASE WHEN status='done' THEN total_harga ELSE 0 END) AS revenue
     FROM orders 
-    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-    GROUP BY day
-    ORDER BY FIELD(day, 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday')
+    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 28 DAY)
+    GROUP BY WEEK(created_at, 1), YEAR(created_at)
+    ORDER BY YEAR(created_at), WEEK(created_at, 1)
 ");
+$orders_by_week = [];
+while ($row = $weekly_orders_query->fetch_assoc()) {
+    $orders_by_week[$row['week_num']] = [
+        'count' => $row['count'],
+        'revenue' => $row['revenue']
+    ];
+}
+
+// Merge with weeks array to ensure all 4 weeks are represented
+foreach ($weeks as $index => $week) {
+    $week_found = false;
+    foreach ($orders_by_week as $week_num => $data) {
+        $week_start = new DateTime($week['start']);
+        $week_num_from_date = $week_start->format('W');
+        if ($week_num == $week_num_from_date) {
+            $weekly_orders_data[] = $data['count'];
+            $weekly_revenue_data[] = $data['revenue'];
+            $week_found = true;
+            break;
+        }
+    }
+    if (!$week_found) {
+        $weekly_orders_data[] = 0;
+        $weekly_revenue_data[] = 0;
+    }
+}
+
+// Data for mini-sparklines in stats cards (last 7 days)
+$sparkline_orders = $conn->query("
+    SELECT DATE(created_at) AS date, COUNT(id) AS count
+    FROM orders 
+    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    GROUP BY DATE(created_at)
+    ORDER BY DATE(created_at)
+");
+$start_date_7days = new DateTime();
+$start_date_7days->modify('-6 days');
+$sparkline_orders_data = array_fill(0, 7, 0);
+while ($row = $sparkline_orders->fetch_assoc()) {
+    $index = (new DateTime($row['date']))->diff($start_date_7days)->days;
+    if ($index >= 0 && $index < 7) {
+        $sparkline_orders_data[$index] = $row['count'];
+    }
+}
+
+$sparkline_revenue = $conn->query("
+    SELECT DATE(created_at) AS date, SUM(total_harga) AS total
+    FROM orders 
+    WHERE status='done' AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    GROUP BY DATE(created_at)
+    ORDER BY DATE(created_at)
+");
+$sparkline_revenue_data = array_fill(0, 7, 0);
+while ($row = $sparkline_revenue->fetch_assoc()) {
+    $index = (new DateTime($row['date']))->diff($start_date_7days)->days;
+    if ($index >= 0 && $index < 7) {
+        $sparkline_revenue_data[$index] = $row['total'];
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -82,7 +164,11 @@ $weekly_orders = $conn->query("
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
         .card-hover:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
@@ -99,6 +185,42 @@ $weekly_orders = $conn->query("
         .failed { background-color: #fee2e2; color: #991b1b; }
         table { table-layout: auto; }
         th, td { white-space: nowrap; }
+        .sparkline-canvas {
+            width: 80px !important;
+            height: 30px !important;
+        }
+        .alert-dismissible {
+            position: relative;
+            padding-right: 3rem;
+        }
+        .alert-dismissible .close-btn {
+            position: absolute;
+            top: 50%;
+            right: 1rem;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 1.25rem;
+            color: inherit;
+            opacity: 0.7;
+        }
+        .alert-dismissible .close-btn:hover {
+            opacity: 1;
+        }
+        .sort-btn {
+            cursor: pointer;
+            padding: 0 0.25rem;
+        }
+        .sort-btn.active i {
+            color: #f97316;
+        }
+        .chart-container {
+            height: 300px; /* Fixed height for charts */
+        }
+        .week-dates {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex">
@@ -141,30 +263,35 @@ $weekly_orders = $conn->query("
     <div class="flex-1 ml-64 p-8">
         <!-- Notification Messages -->
         <?php if (isset($_SESSION['success_message'])): ?>
-            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded">
+            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded alert-dismissible" id="success-alert">
                 <div class="flex items-center">
                     <i class="fas fa-check-circle mr-2"></i>
                     <p><?= htmlspecialchars($_SESSION['success_message']); unset($_SESSION['success_message']); ?></p>
+                    <span class="close-btn" onclick="dismissAlert('success-alert')">×</span>
                 </div>
             </div>
         <?php endif; ?>
         
         <?php if (isset($_SESSION['error_message'])): ?>
-            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
+            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded alert-dismissible" id="error-alert">
                 <div class="flex items-center">
                     <i class="fas fa-exclamation-circle mr-2"></i>
                     <p><?= htmlspecialchars($_SESSION['error_message']); unset($_SESSION['error_message']); ?></p>
+                    <span class="close-btn" onclick="dismissAlert('error-alert')">×</span>
                 </div>
             </div>
         <?php endif; ?>
         
-        <!-- Header Dashboard-->
+        <!-- Header Dashboard -->
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-orange-600">
                 <i class="fas fa-tachometer-alt mr-2"></i> Dashboard Admin
             </h1>
-            <div class="text-sm text-gray-500">
-                <?= date('l, d F Y') ?>
+            <div class="flex items-center space-x-3">
+                <button id="refresh-btn" class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition flex items-center">
+                    <i class="fas fa-sync-alt mr-2"></i> Refresh
+                </button>
+                <input type="date" id="date-filter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" value="<?= date('Y-m-d') ?>">
             </div>
         </div>
 
@@ -173,43 +300,45 @@ $weekly_orders = $conn->query("
             <div class="bg-white rounded-xl shadow-md p-6 transition-all duration-300 card-hover">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-gray-500">Total Pendapatan</p>
+                        <p class="text-gray-500 text-sm">Total Pendapatan</p>
                         <h3 class="text-2xl font-bold text-orange-600">Rp <?= number_format($total_pendapatan, 0, ',', '.') ?></h3>
                     </div>
                     <div class="p-3 rounded-full bg-orange-100 text-orange-600">
                         <i class="fas fa-wallet text-xl"></i>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-100">
+                <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
                     <p class="text-sm text-gray-500 flex items-center">
                         <span class="text-green-500 mr-1"><i class="fas fa-arrow-up"></i> Rp <?= number_format($pendapatan_hari_ini, 0, ',', '.') ?></span>
                         <span>hari ini</span>
                     </p>
+                    <canvas class="sparkline-canvas" id="sparkline-revenue"></canvas>
                 </div>
             </div>
 
             <div class="bg-white rounded-xl shadow-md p-6 transition-all duration-300 card-hover">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-gray-500">Total Pesanan</p>
+                        <p class="text-gray-500 text-sm">Total Pesanan</p>
                         <h3 class="text-2xl font-bold text-orange-600"><?= number_format($total_pesanan, 0, ',', '.') ?></h3>
                     </div>
                     <div class="p-3 rounded-full bg-orange-100 text-orange-600">
                         <i class="fas fa-receipt text-xl"></i>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-100">
+                <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
                     <p class="text-sm text-gray-500 flex items-center">
                         <span class="text-green-500 mr-1"><i class="fas fa-arrow-up"></i> <?= $pesanan_hari_ini ?></span>
                         <span>hari ini</span>
                     </p>
+                    <canvas class="sparkline-canvas" id="sparkline-orders"></canvas>
                 </div>
             </div>
 
             <div class="bg-white rounded-xl shadow-md p-6 transition-all duration-300 card-hover">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-gray-500">Pesanan Masuk</p>
+                        <p class="text-gray-500 text-sm">Pesanan Masuk</p>
                         <h3 class="text-2xl font-bold text-orange-600"><?= $result->num_rows ?></h3>
                     </div>
                     <div class="p-3 rounded-full bg-orange-100 text-orange-600">
@@ -226,7 +355,7 @@ $weekly_orders = $conn->query("
             <div class="bg-white rounded-xl shadow-md p-6 transition-all duration-300 card-hover">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-gray-500">Menu Terpopuler</p>
+                        <p class="text-gray-500 text-sm">Menu Terpopuler</p>
                         <h3 class="text-2xl font-bold text-orange-600 truncate">
                             <?= $popular_menu->num_rows > 0 ? htmlspecialchars($popular_menu->fetch_assoc()['nama_menu']) : '-' ?>
                         </h3>
@@ -247,14 +376,32 @@ $weekly_orders = $conn->query("
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <!-- Orders Chart -->
             <div class="bg-white rounded-xl shadow-md p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Statistik Pesanan 7 Hari Terakhir</h3>
-                <canvas id="ordersChart" height="250"></canvas>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Statistik Pesanan 4 Minggu Terakhir</h3>
+                <div class="chart-container">
+                    <canvas id="ordersChart"></canvas>
+                </div>
+                <div class="week-dates">
+                    <?php 
+                    foreach ($week_date_ranges as $index => $range) {
+                        echo "Minggu " . ($index + 1) . ": " . $range . ($index < count($week_date_ranges) - 1 ? " | " : "");
+                    }
+                    ?>
+                </div>
             </div>
             
             <!-- Revenue Chart -->
             <div class="bg-white rounded-xl shadow-md p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Pendapatan 7 Hari Terakhir</h3>
-                <canvas id="revenueChart" height="250"></canvas>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Pendapatan 4 Minggu Terakhir</h3>
+                <div class="chart-container">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+                <div class="week-dates">
+                    <?php 
+                    foreach ($week_date_ranges as $index => $range) {
+                        echo "Minggu " . ($index + 1) . ": " . $range . ($index < count($week_date_ranges) - 1 ? " | " : "");
+                    }
+                    ?>
+                </div>
             </div>
         </div>
 
@@ -267,25 +414,37 @@ $weekly_orders = $conn->query("
                         <i class="fas fa-check-circle mr-2 text-green-500"></i> Pesanan Selesai Terakhir
                     </h3>
                 </div>
-                <div class="overflow-x-auto max-w-full">
-                    <table class="min-w-full table-auto">
+                <div>
+                    <table class="min-w-full table-auto" id="completed-orders-table">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Midtrans ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    ID
+                                    <span class="sort-btn" onclick="sortTable('completed-orders-table', 0, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                    <span class="sort-btn" onclick="sortTable('completed-orders-table', 0, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                                </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Total
+                                    <span class="sort-btn" onclick="sortTable('completed-orders-table', 4, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                    <span class="sort-btn" onclick="sortTable('completed-orders-table', 4, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                                </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Waktu
+                                    <span class="sort-btn" onclick="sortTable('completed-orders-table', 6, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                    <span class="sort-btn" onclick="sortTable('completed-orders-table', 6, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                                </th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <?php while ($row = $completed_orders->fetch_assoc()): ?>
+                            <?php 
+                            $completed_orders->data_seek(0); // Reset pointer
+                            while ($row = $completed_orders->fetch_assoc()): ?>
                                 <tr class="hover:bg-green-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['midtrans_order_id'] ?? '-' ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['id_meja'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp <?= number_format($row['total_harga'], 0, ',', '.') ?></td>
@@ -312,21 +471,35 @@ $weekly_orders = $conn->query("
                         <i class="fas fa-times-circle mr-2 text-red-500"></i> Pesanan Gagal Terakhir
                     </h3>
                 </div>
-                <div class="overflow-x-auto max-w-full">
-                    <table class="min-w-full table-auto">
+                <div>
+                    <table class="min-w-full table-auto" id="failed-orders-table">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    ID
+                                    <span class="sort-btn" onclick="sortTable('failed-orders-table', 0, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                    <span class="sort-btn" onclick="sortTable('failed-orders-table', 0, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                                </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meja</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Total
+                                    <span class="sort-btn" onclick="sortTable('failed-orders-table', 3, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                    <span class="sort-btn" onclick="sortTable('failed-orders-table', 3, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                                </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Waktu
+                                    <span class="sort-btn" onclick="sortTable('failed-orders-table', 5, 'asc')"><i class="fas fa-arrow-up"></i></span>
+                                    <span class="sort-btn" onclick="sortTable('failed-orders-table', 5, 'desc')"><i class="fas fa-arrow-down"></i></span>
+                                </th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <?php while ($row = $failed_orders->fetch_assoc()): ?>
+                            <?php 
+                            $failed_orders->data_seek(0); // Reset pointer
+                            while ($row = $failed_orders->fetch_assoc()): ?>
                                 <tr class="hover:bg-red-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#<?= $row['id'] ?></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $row['customer_name'] ?? '-' ?></td>
@@ -351,54 +524,95 @@ $weekly_orders = $conn->query("
     </div>
 
     <script>
+        // Dismiss alert
+        function dismissAlert(alertId) {
+            const alert = document.getElementById(alertId);
+            alert.style.transition = 'opacity 0.5s';
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 500);
+        }
+
         // Auto-dismiss alerts after 5 seconds
         setTimeout(() => {
-            const alerts = document.querySelectorAll('.bg-green-100, .bg-red-100');
+            const alerts = document.querySelectorAll('.alert-dismissible');
             alerts.forEach(alert => {
-                alert.style.transition = 'opacity 1s';
+                alert.style.transition = 'opacity 0.5s';
                 alert.style.opacity = '0';
-                setTimeout(() => alert.remove(), 1000);
+                setTimeout(() => alert.remove(), 500);
             });
         }, 5000);
 
-        // Prepare data for charts from PHP query
-        const weeklyData = [
-            <?php 
-            $weekly_orders->data_seek(0);
-            while ($row = $weekly_orders->fetch_assoc()): 
-                echo "{day: '".substr($row['day'], 0, 3)."', orders: ".$row['count'].", revenue: ".$row['revenue']."},";
-            endwhile; 
-            ?>
-        ];
+        // Refresh button
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            location.reload();
+        });
+
+        // Date filter (placeholder functionality)
+        document.getElementById('date-filter').addEventListener('change', (e) => {
+            alert('Filter tanggal belum diimplementasikan. Tanggal yang dipilih: ' + e.target.value);
+            // Tambah logika untuk filter data berdasarkan tanggal di sini
+        });
+
+        // Chart data
+        const weeks = <?= json_encode($week_labels) ?>;
+        const weekDateRanges = <?= json_encode($week_date_ranges) ?>;
+        const ordersData = <?= json_encode($weekly_orders_data) ?>;
+        const revenueData = <?= json_encode($weekly_revenue_data) ?>;
 
         // Orders Chart
         const ordersCtx = document.getElementById('ordersChart').getContext('2d');
         new Chart(ordersCtx, {
             type: 'line',
             data: {
-                labels: weeklyData.map(item => item.day),
+                labels: weeks,
                 datasets: [{
                     label: 'Pesanan',
-                    data: weeklyData.map(item => item.orders),
+                    data: ordersData,
                     backgroundColor: 'rgba(249, 115, 22, 0.2)',
                     borderColor: 'rgba(249, 115, 22, 1)',
                     borderWidth: 2,
-                    tension: 0.4,
-                    fill: true
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: false
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: { size: 14 },
+                        bodyFont: { size: 12 },
+                        callbacks: {
+                            title: function(context) {
+                                const index = context[0].dataIndex;
+                                return weeks[index] + ' ' + weekDateRanges[index];
+                            },
+                            label: function(context) {
+                                return `Pesanan: ${context.raw}`;
+                            }
+                        }
                     }
                 },
                 scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { 
+                            color: '#6b7280',
+                            maxRotation: 0,
+                            minRotation: 0
+                        }
+                    },
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { color: '#6b7280' }
                     }
-                }
+                },
+                animation: false // Disable animation for better performance
             }
         });
 
@@ -407,43 +621,139 @@ $weekly_orders = $conn->query("
         new Chart(revenueCtx, {
             type: 'line',
             data: {
-                labels: weeklyData.map(item => item.day),
+                labels: weeks,
                 datasets: [{
                     label: 'Pendapatan (Rp)',
-                    data: weeklyData.map(item => item.revenue),
+                    data: revenueData,
                     backgroundColor: 'rgba(16, 185, 129, 0.2)',
                     borderColor: 'rgba(16, 185, 129, 1)',
                     borderWidth: 2,
-                    tension: 0.4,
-                    fill: true
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: false
-                    },
+                    legend: { display: false },
                     tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: { size: 14 },
+                        bodyFont: { size: 12 },
                         callbacks: {
+                            title: function(context) {
+                                const index = context[0].dataIndex;
+                                return weeks[index] + ' ' + weekDateRanges[index];
+                            },
                             label: function(context) {
-                                return 'Rp ' + context.raw.toLocaleString('id-ID');
+                                return `Pendapatan: Rp ${context.raw.toLocaleString('id-ID')}`;
                             }
                         }
                     }
                 },
                 scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { 
+                            color: '#6b7280',
+                            maxRotation: 0,
+                            minRotation: 0
+                        }
+                    },
                     y: {
                         beginAtZero: true,
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
                         ticks: {
+                            color: '#6b7280',
                             callback: function(value) {
                                 return 'Rp ' + value.toLocaleString('id-ID');
                             }
                         }
                     }
-                }
+                },
+                animation: false // Disable animation for better performance
             }
         });
+
+        // Sparkline for Orders
+        const sparklineOrdersCtx = document.getElementById('sparkline-orders').getContext('2d');
+        new Chart(sparklineOrdersCtx, {
+            type: 'line',
+            data: {
+                labels: Array(7).fill(''),
+                datasets: [{
+                    data: <?= json_encode($sparkline_orders_data) ?>,
+                    borderColor: 'rgba(249, 115, 22, 1)',
+                    borderWidth: 1,
+                    fill: false,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                scales: { x: { display: false }, y: { display: false } }
+            }
+        });
+
+        // Sparkline for Revenue
+        const sparklineRevenueCtx = document.getElementById('sparkline-revenue').getContext('2d');
+        new Chart(sparklineRevenueCtx, {
+            type: 'line',
+            data: {
+                labels: Array(7).fill(''),
+                datasets: [{
+                    data: <?= json_encode($sparkline_revenue_data) ?>,
+                    borderColor: 'rgba(16, 185, 129, 1)',
+                    borderWidth: 1,
+                    fill: false,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                scales: { x: { display: false }, y: { display: false } }
+            }
+        });
+
+        // Table sorting
+        function sortTable(tableId, colIndex, sortOrder) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort((a, b) => {
+                let aValue = a.cells[colIndex].innerText;
+                let bValue = b.cells[colIndex].innerText;
+
+                // Special handling for "Total" (currency) and "Waktu" (date)
+                if (colIndex === 4 || colIndex === 3) { // Total (completed: 4, failed: 3)
+                    aValue = parseFloat(aValue.replace(/[^0-9]/g, ''));
+                    bValue = parseFloat(bValue.replace(/[^0-9]/g, ''));
+                } else if (colIndex === 6 || colIndex === 5) { // Waktu (completed: 6, failed: 5)
+                    aValue = new Date(aValue.split('/').reverse().join('-') + ' ' + aValue.split(' ')[1]).getTime();
+                    bValue = new Date(bValue.split('/').reverse().join('-') + ' ' + bValue.split(' ')[1]).getTime();
+                } else if (colIndex === 0) { // ID
+                    aValue = parseInt(aValue.replace('#', ''));
+                    bValue = parseInt(bValue.replace('#', ''));
+                }
+
+                return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+            });
+
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+
+            // Update sort button styles
+            const sortButtons = table.querySelectorAll(`th:nth-child(${colIndex + 1}) .sort-btn`);
+            sortButtons.forEach(btn => btn.classList.remove('active'));
+            const activeBtn = table.querySelector(`th:nth-child(${colIndex + 1}) .sort-btn[onclick*="${sortOrder}"]`);
+            activeBtn.classList.add('active');
+        }
     </script>
 </body>
 </html>
