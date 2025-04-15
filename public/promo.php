@@ -51,113 +51,7 @@ while ($promo = $promos->fetch_assoc()) {
     <title>Promo - ZidanKitchen</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(180deg, #f0f4ff 0%, #ffffff 100%);
-            overscroll-behavior: none;
-        }
-
-        /* Smooth Animations */
-        @keyframes fadeInUp {
-            0% {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            100% {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.05);
-            }
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        .animate-in {
-            animation: fadeInUp 0.6s ease-out forwards;
-        }
-
-        .card-hover:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
-        }
-
-        /* Glassmorphism Effect */
-        .glass {
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-
-        /* Toast Notification */
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: linear-gradient(135deg, #4CAF50, #2e7d32);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 12px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-            z-index: 9999;
-            opacity: 0;
-            transform: translateX(20px);
-            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-
-        .toast.show {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        /* Header responsif */
-        header .flex {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        header .flex > div:first-child {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-        }
-
-        @media (max-width: 640px) {
-            header .flex {
-                flex-direction: row;
-                align-items: center;
-                justify-content: space-between;
-            }
-
-            header h1 {
-                font-size: 1.5rem;
-            }
-
-            header .flex > div:first-child {
-                flex: 1;
-                display: flex;
-                align-items: center;
-                justify-content: flex-start;
-            }
-
-            header .flex > div:last-child {
-                flex: 0;
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="../assets/css/promo.css">
 </head>
 
 <body class="min-h-screen m-0 p-0">
@@ -191,9 +85,6 @@ while ($promo = $promos->fetch_assoc()) {
                         <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path>
                         </svg>
-                        <?php if ($cart_count > 0): ?>
-                            <span class="cart-count absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse"><?php echo $cart_count; ?></span>
-                        <?php endif; ?>
                     </div>
                 </a>
             </div>
@@ -201,7 +92,7 @@ while ($promo = $promos->fetch_assoc()) {
     </header>
 
     <!-- Promo Section -->
-    <main class="container mx-auto px-6 py-8 max-w-7xl pt-16">
+    <main class="container mx-auto px-5 py-8 max-w-7xl pt-6 pb-20">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Promo Spesial ZidanKitchen</h1>
         <?php if (count($promo_list) > 0): ?>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -258,25 +149,9 @@ while ($promo = $promos->fetch_assoc()) {
 
     <!-- JavaScript -->
     <script>
-        // Update Cart Count
-        function updateCartCount() {
-            fetch('get_cart_count.php')
-                .then(response => response.json())
-                .then(data => {
-                    const cartCounts = document.querySelectorAll('.cart-count');
-                    cartCounts.forEach(el => {
-                        if (data.count > 0) {
-                            el.textContent = data.count;
-                            el.style.display = 'flex';
-                        } else {
-                            el.style.display = 'none';
-                        }
-                    });
-                });
-        }
-
+        // Update Cart Count (removed since cart count badge is no longer needed)
         document.addEventListener('DOMContentLoaded', function() {
-            updateCartCount();
+            // No cart count update needed
         });
     </script>
 </body>

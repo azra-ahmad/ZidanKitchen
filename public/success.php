@@ -138,7 +138,7 @@ $estimated_minutes = 15;
         </div>
 
         <!-- Main Content -->
-        <main class="flex-1 p-4 max-w-2xl mx-auto w-full">
+        <main class="flex-1 p-4 max-w-2xl mx-auto w-full pb-20">
             <!-- Order Status -->
             <div class="bg-white rounded-xl p-6 mb-6 shadow-md border border-blue-100 animate-slide-in">
                 <div class="flex items-center justify-between mb-4">

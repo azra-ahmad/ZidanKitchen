@@ -89,7 +89,7 @@ body {
 /* Toast Notification */
 .toast {
     position: fixed;
-    top: 20px;
+    bottom: 4rem; /* Above bottom nav */
     right: 20px;
     background: linear-gradient(135deg, #4CAF50, #2e7d32);
     color: white;
